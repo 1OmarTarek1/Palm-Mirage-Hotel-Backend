@@ -12,7 +12,7 @@ router.post("/login", validation(validators.login), loginService.login)
 // router.post('/loginWithGmail', loginService.loginWithGmail)
 
 router.get("/refresh-token", loginService.refreshToken)
- //router.patch("/forgot-password", validation(validators.forgetPassword), loginService.forgotPassword)
+ router.patch("/forgot-password", validation(validators.forgetPassword), loginService.forgotPassword)
 
 //router.patch("/reset-password", validation(validators.resetPassword), loginService.resetPassword)
 

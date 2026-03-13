@@ -122,3 +122,21 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
   });
 });
 
+export const forgotPassword = asyncHandler(async (req, res, next) => {
+  const { email } = req.body;
+
+  const user = await userModel.findOne({ email, deletedAt: null });
+
+  if (!user) {
+    return next(new Error(' account not found'), { cause: 404 });
+  }
+
+  if (!user.isConfirmed) {
+    return next(new Error('Verify your account first'), {
+      cause: 400,
+    });
+  }
+  emailEvent.emit('sendForgetPassword', { email });
+
+  return successResponse({ res });
+});
