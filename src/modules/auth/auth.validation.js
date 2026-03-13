@@ -36,6 +36,14 @@ export const forgetPassword = joi
   })
   .required();
 
-export const resetPassword = joi.object().keys({
-
-}).required();
+export const resetPassword = joi
+  .object()
+  .keys({
+    code: generalFields.code.required(),
+    email: generalFields.email.required(),
+    password: generalFields.password.required(),
+    confirmationPassword: generalFields.confirmationPassword
+      .valid(joi.ref('password'))
+      .required(),
+  })
+  .required();
