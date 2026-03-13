@@ -29,9 +29,12 @@ export const login = joi
   })
   .required();
 
-export const forgetPassword = joi.object().keys({
-  
-}).required();
+export const forgetPassword = joi
+  .object()
+  .keys({
+    email: generalFields.email.required(),
+  })
+  .required();
 
 export const resetPassword = joi.object().keys({
 
