@@ -18,3 +18,9 @@ export const globalErrorHandling = (error, req, res, next) => {
     return res.status(error.cause || 400).json({ message: error.message, error })
 
 }
+
+export const createUnauthorizedError = (
+  message = 'Unauthorized - Please login'
+) => {
+  return new ApiError(HTTP_STATUS.UNAUTHORIZED, message);
+};
