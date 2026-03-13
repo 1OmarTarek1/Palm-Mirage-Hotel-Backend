@@ -14,7 +14,7 @@ router.post("/login", validation(validators.login), loginService.login)
 router.get("/refresh-token", loginService.refreshToken)
  router.patch("/forgot-password", validation(validators.forgetPassword), loginService.forgotPassword)
 
-//router.patch("/reset-password", validation(validators.resetPassword), loginService.resetPassword)
+router.patch("/reset-password", validation(validators.resetPassword), loginService.resetPassword)
 
 
 
