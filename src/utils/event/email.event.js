@@ -30,4 +30,44 @@ emailEvent.on("sendConfirmEmail", async (data) => {
   console.log("email sent");
 });
 
-emailEvent.on("sendForgetPaasword", async (data) => {});
+emailEvent.on('sendForgetPassword', async (data) => {
+  const { email } = data;
+
+  // create OTP
+  const emailotp = customAlphabet('0123456789', 4)();
+
+  // hash OTP
+  const hashOTP = generateHash({ plainText: `${emailotp}` });
+
+  const OTP = {
+    code: hashOTP,
+    type: otpTypes.forgetPassword,
+    expiresIn: new Date(Date.now() + 10 * 60 * 1000),
+    //used: false,
+  };
+  const html = verficatioinEmailTemplate({ code: emailotp });
+
+  // before pushing a new code remove any existing forgetPassword OTPs
+  await dbService.updateOne({
+    model: userModel,
+    filter: { email },
+    data: { $pull: { OTP: { type: otpTypes.forgetPassword } } },
+  });
+
+  //const html = forgetPasswordTemplate({ code: emailotp });
+
+  await dbService.updateOne({
+    model: userModel,
+    filter: { email },
+    data: { $push: { OTP } },
+    options: { new: true },
+  });
+
+  await sendEmail({
+    to: email,
+    subject: 'Reset Password',
+    html,
+  });
+
+  console.log('forget password email sent');
+});
