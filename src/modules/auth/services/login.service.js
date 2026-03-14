@@ -125,8 +125,10 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
 export const forgotPassword = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
 
-  const user = await userModel.findOne({ email, deletedAt: null });
-
+const user = await dbService.findOne({
+  model: userModel,
+  filter: { email, deletedAt: null },
+});
   if (!user) {
     return next(new Error(' account not found'), { cause: 404 });
   }
@@ -145,8 +147,10 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
 export const resetPassword = asyncHandler(async (req, res, next) => {
   const { email, code, password } = req.body;
 
-  const user = await userModel.findOne({ email, deletedAt: null });
-
+  const user = await dbService.findOne({
+    model: userModel,
+    filter: { email, deletedAt: null },
+  });
   if (!user) {
     return next(new Error('In-valid account'), { cause: 404 });
   }
