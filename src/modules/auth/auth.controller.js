@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import * as registrationService from './services/registration.service.js'
 import * as loginService from './services/login.service.js'
+import * as changePasswordService from './services/changePassword.service.js'
 import * as validators from './auth.validation.js'
 import { validation } from '../../middleware/validation.middleware.js';
+import { authentication } from '../../middleware/auth.middleware.js';
 
 const router = Router()
 
@@ -16,6 +18,12 @@ router.get("/refresh-token", loginService.refreshToken)
 
 router.patch("/reset-password", validation(validators.resetPassword), loginService.resetPassword)
 
+router.patch(
+  "/change-password",
+  authentication(),
+  validation(validators.changePassword),
+  changePasswordService.changePassword
+)
 
 
 
