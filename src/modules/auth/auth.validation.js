@@ -47,3 +47,14 @@ export const resetPassword = joi
       .required(),
   })
   .required();
+
+export const changePassword = joi
+  .object()
+  .keys({
+    oldPassword: generalFields.password.required(),
+    newPassword: generalFields.password.required(),
+    confirmationPassword: generalFields.confirmationPassword
+      .valid(joi.ref('newPassword'))
+      .required(),
+  })
+  .required();
