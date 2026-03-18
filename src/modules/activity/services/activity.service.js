@@ -58,18 +58,53 @@ export const createActivity = asyncHandler(async (req, res, next) => {
 });
 
 export const getAllActivities = asyncHandler(async (req, res, next) => {
+  const { category, search, icon, sort, page = 1, limit = 10 } = req.query;
+
   const filter = {};
-  if (req.query.category) {
-    filter.category = req.query.category;
+
+  if (category) filter.category = category;
+  if (icon) filter.icon = icon;
+
+  if (search) {
+    filter.$or = [
+      { title: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+      { label: { $regex: search, $options: "i" } },
+    ];
   }
 
-  const activities = await dbService.findAll({
-    model: activityModel,
-    filter,
-    populate: [{ path: "category", select: "label icon" }],
-  });
+  const sortOptions = {
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+    title_asc: { title: 1 },
+    title_desc: { title: -1 },
+  };
+  const sortBy = sortOptions[sort] || { createdAt: -1 };
 
-  return successResponse({ res, data: { activities } });
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const [activities, total] = await Promise.all([
+    activityModel
+      .find(filter)
+      .sort(sortBy)
+      .skip(skip)
+      .limit(Number(limit))
+      .populate({ path: "category", select: "label icon" }),
+    activityModel.countDocuments(filter),
+  ]);
+
+  return successResponse({
+    res,
+    data: {
+      activities,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    },
+  });
 });
 
 export const getActivityById = asyncHandler(async (req, res, next) => {
