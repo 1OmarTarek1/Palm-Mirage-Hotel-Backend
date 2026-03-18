@@ -47,5 +47,10 @@ export const queryFilter = joi
   .object()
   .keys({
     category: generalFields.id,
+    search: joi.string().trim().max(200).allow(""),
+    icon: joi.string().valid(...allowedIcons),
+    sort: joi.string().valid("newest", "oldest", "title_asc", "title_desc"),
+    page: joi.number().integer().min(1),
+    limit: joi.number().integer().min(1).max(100),
   })
   .required();
