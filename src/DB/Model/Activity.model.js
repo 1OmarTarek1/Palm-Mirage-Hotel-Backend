@@ -51,6 +51,8 @@ const activitySchema = new Schema(
   { timestamps: true }
 );
 
+activitySchema.index({ title: "text", description: "text", label: "text" });
+
 activitySchema.set("toJSON", { virtuals: true });
 activitySchema.set("toObject", { virtuals: true });
 
