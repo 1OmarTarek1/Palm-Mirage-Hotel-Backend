@@ -1,6 +1,7 @@
 import connectDB from "./DB/conenction.js";
 import authController from "./modules/auth/auth.controller.js";
 import userController from "./modules/user/user.controller.js";
+import roomController from "./modules/rooms/room.controller.js";
 import { globalErrorHandling } from "./utils/response/error.response.js";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -22,6 +23,7 @@ const bootstrap = (app, express) => {
   app.get("/", (req, res) => res.send({ message: "Hello World!" }));
   app.use("/auth", authController);
   app.use("/user", userController);
+  app.use("/room", roomController);
   app.use("*", (req, res, next) => {
     return res.status(404).json({ message: "Invalid routing" });
   });
