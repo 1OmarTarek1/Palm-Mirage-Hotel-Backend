@@ -13,6 +13,8 @@ router.patch("/confirm-email", validation(validators.confirmEmail), registration
 router.post("/login", validation(validators.login), loginService.login)
 router.post("/login-google", validation(validators.loginWithGoogle), loginService.loginWithGmail)
 
+router.get("/me", authentication(), loginService.getMe)
+
 router.get("/refresh-token", loginService.refreshToken)
  router.patch("/forgot-password", validation(validators.forgetPassword), loginService.forgotPassword)
 

@@ -81,7 +81,7 @@ export const login = asyncHandler(async (req, res, next) => {
 
 // omar - login with google
 export const loginWithGmail = asyncHandler(async (req, res, next) => {
-  const { idToken } = req.body;
+  const { idToken, mode = 'login' } = req.body;
   const client = new OAuth2Client(process.env.CLIENT_ID);
 
   const ticket = await client.verifyIdToken({
@@ -106,6 +106,9 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
         { cause: 409 }
       );
     }
+    if (mode === 'register') {
+      return next(new Error('This Google account is already registered. Please login instead.'), { cause: 409 });
+    }
     if (user.bannedAt) {
       return next(new Error('Your account is banned'), { cause: 403 });
     }
@@ -117,6 +120,10 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
       });
     }
   } else {
+    if (mode === 'login') {
+      return next(new Error('No account found with this Google email. Please register first.'), { cause: 404 });
+    }
+
     user = await dbService.create({
       model: userModel,
       data: {
@@ -153,6 +160,17 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
       accessToken,
       refreshToken,
       isNewUser: !user.createdAt || (Date.now() - new Date(user.createdAt).getTime()) < 5000,
+    },
+  });
+});
+
+export const getMe = asyncHandler(async (req, res, next) => {
+  const { _id, userName, email, image, provider, gender, DOB, phoneNumber, country, role, createdAt } = req.user;
+
+  return successResponse({
+    res,
+    data: {
+      user: { _id, userName, email, image, provider, gender, DOB, phoneNumber, country, role, createdAt },
     },
   });
 });
