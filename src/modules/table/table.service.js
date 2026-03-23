@@ -33,3 +33,13 @@ export const getTableById = asyncHandler(async (req, res) => {
 
   res.json({ table });
 });
+//get by number
+export const getTableByNumber = asyncHandler(async (req, res) => {
+  const number = Number(req.params.number);
+
+  const table = await dbService.findOne({ model: Table, filter: { number } });
+
+  if (!table) return res.status(404).json({ message: 'Table not found' });
+
+  res.json({ table });
+});
