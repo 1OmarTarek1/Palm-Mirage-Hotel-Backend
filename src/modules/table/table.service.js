@@ -43,3 +43,27 @@ export const getTableByNumber = asyncHandler(async (req, res) => {
 
   res.json({ table });
 });
+
+//update
+export const updateTable = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const updates = req.body;
+
+  try {
+    const table = await dbService.findByIdAndUpdate({
+      model: Table,
+      id,
+      data: updates,
+      options: { new: true, runValidators: true },
+    });
+
+    if (!table) return res.status(404).json({ message: 'Table not found' });
+
+    res.json({ message: 'Table updated', table });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ message: 'Table number already exists' });
+    }
+    throw error;
+  }
+});
