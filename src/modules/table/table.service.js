@@ -23,3 +23,13 @@ export const getTables = asyncHandler(async (req, res) => {
   const tables = await dbService.findAll({ model: Table });
   res.json({ tables });
 });
+//get by id
+export const getTableById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const table = await dbService.findOne({ model: Table, filter: { _id: id } });
+
+  if (!table) return res.status(404).json({ message: 'Table not found' });
+
+  res.json({ table });
+});
