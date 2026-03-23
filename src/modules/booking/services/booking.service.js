@@ -132,7 +132,7 @@ export const createBooking = asyncHandler(async (req, res) => {
 });
 
  //GET AVAILABLE TABLES 
- 
+
 export const getAvailableTables = asyncHandler(async (req, res) => {
   const { date, time, guests } = req.query;
   const startTime = new Date(`${date}T${time}:00`);
@@ -160,3 +160,21 @@ export const getAvailableTables = asyncHandler(async (req, res) => {
 
   return res.json({ message: 'Available tables', tables: availableTables });
 });
+
+
+// PROMOTE WAITLIST BOOKINGS 
+export const promoteWaitlist = async (tableId, startTime, endTime, session) => {
+  const nextInWaitlist = await dbService.findOne({
+    model: Booking,
+    filter: { table: null, startTime, endTime, status: 'pending' },
+    options: { sort: { createdAt: 1 } },
+  });
+
+  if (nextInWaitlist) {
+    await dbService.findByIdAndUpdate({
+      model: Booking,
+      id: nextInWaitlist._id,
+      data: { table: tableId, status: 'confirmed' },
+    });
+  }
+}
