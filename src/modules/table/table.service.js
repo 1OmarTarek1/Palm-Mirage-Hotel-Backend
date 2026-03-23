@@ -1,20 +1,4 @@
-import mongoose from 'mongoose';
+import Table from '../../DB/Model/table.model.js';
+import { asyncHandler } from '../../../src/utils/response/error.response.js';
+import * as dbService from '../../../DB/db.service.js';
 
-const tableSchema = new mongoose.Schema(
-  {
-    number: {
-      type: Number,
-      required: true,
-      unique: true,
-      min: 1,
-    },
-    chairs: {
-      type: Number,
-      required: true,
-      min: 1,
-    },
-  },
-  { timestamps: true }
-);
-
-export default mongoose.model('Table', tableSchema);
