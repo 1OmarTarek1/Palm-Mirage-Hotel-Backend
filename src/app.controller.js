@@ -2,7 +2,6 @@ import connectDB from "./DB/conenction.js";
 import cors from "cors";
 import authController from "./modules/auth/auth.controller.js";
 import userController from "./modules/user/user.controller.js";
-import activityCategoryController from "./modules/activityCategory/activityCategory.controller.js";
 import activityController from "./modules/activity/activity.controller.js";
 import roomController from "./modules/rooms/room.controller.js";
 import { globalErrorHandling } from "./utils/response/error.response.js";
@@ -16,6 +15,7 @@ import rateLimit from "express-rate-limit";
 // });
 
 const bootstrap = (app, express) => {
+  // Allow frontend origins (from .env.dev ORAGIN) to call our API and send cookies
   const whitelist = process.env.ORAGIN?.split(",").map((o) => o.trim()) || [];
 
   // Allow frontend origins (from .env.dev ORAGIN) to call our API and send cookies
@@ -34,7 +34,6 @@ const bootstrap = (app, express) => {
   app.get("/", (req, res) => res.send({ message: "Hello World!" }));
   app.use("/auth", authController);
   app.use("/user", userController);
-  app.use("/activity-category", activityCategoryController);
   app.use("/activity", activityController);
   app.use("/room", roomController);
   app.use("*", (req, res, next) => {
