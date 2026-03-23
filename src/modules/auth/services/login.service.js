@@ -78,11 +78,82 @@ export const login = asyncHandler(async (req, res, next) => {
   });
 });
 
+
+// omar - login with google
 export const loginWithGmail = asyncHandler(async (req, res, next) => {
+  const { idToken } = req.body;
+  const client = new OAuth2Client(process.env.CLIENT_ID);
+
+  const ticket = await client.verifyIdToken({
+    idToken,
+    audience: process.env.CLIENT_ID,
+  });
+  const payload = ticket.getPayload();
+
+  if (!payload.email_verified) {
+    return next(new Error('Google email is not verified'), { cause: 400 });
+  }
+
+  let user = await dbService.findOne({
+    model: userModel,
+    filter: { email: payload.email },
+  });
+
+  if (user) {
+    if (user.provider !== providerTypes.google) {
+      return next(
+        new Error('This email is already registered with email & password. Please login normally.'),
+        { cause: 409 }
+      );
+    }
+    if (user.bannedAt) {
+      return next(new Error('Your account is banned'), { cause: 403 });
+    }
+    if (user.deletedAt) {
+      await dbService.updateOne({
+        model: userModel,
+        filter: { email: payload.email },
+        data: { $unset: { deletedAt: 1 } },
+      });
+    }
+  } else {
+    user = await dbService.create({
+      model: userModel,
+      data: {
+        userName: payload.name,
+        email: payload.email,
+        provider: providerTypes.google,
+        isConfirmed: true,
+        image: payload.picture,
+        country: 'N/A',
+      },
+    });
+  }
+
+  const accessToken = generateToken({
+    payload: { id: user._id },
+    signature:
+      user.role === roleTypes.admin
+        ? process.env.SYSTEM_ACCESS_TOKEN
+        : process.env.USER_ACCESS_TOKEN,
+  });
+  const refreshToken = generateToken({
+    payload: { id: user._id },
+    signature:
+      user.role === roleTypes.admin
+        ? process.env.SYSTEM_REFRESH_TOKEN
+        : process.env.USER_REFRESH_TOKEN,
+    expiresIn: 31536000,
+  });
+
   return successResponse({
     res,
     status: 200,
-    data: {},
+    data: {
+      accessToken,
+      refreshToken,
+      isNewUser: !user.createdAt || (Date.now() - new Date(user.createdAt).getTime()) < 5000,
+    },
   });
 });
 
