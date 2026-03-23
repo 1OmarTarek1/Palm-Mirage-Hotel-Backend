@@ -3,6 +3,7 @@ import authController from "./modules/auth/auth.controller.js";
 import userController from "./modules/user/user.controller.js";
 import activityCategoryController from "./modules/activityCategory/activityCategory.controller.js";
 import activityController from "./modules/activity/activity.controller.js";
+import roomController from "./modules/rooms/room.controller.js";
 import { globalErrorHandling } from "./utils/response/error.response.js";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -26,6 +27,7 @@ const bootstrap = (app, express) => {
   app.use("/user", userController);
   app.use("/activity-category", activityCategoryController);
   app.use("/activity", activityController);
+  app.use("/room", roomController);
   app.use("*", (req, res, next) => {
     return res.status(404).json({ message: "Invalid routing" });
   });
