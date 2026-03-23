@@ -178,3 +178,42 @@ export const promoteWaitlist = async (tableId, startTime, endTime, session) => {
     });
   }
 }
+
+
+ //CANCEL BOOKING 
+export const cancelBooking = asyncHandler(async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const booking = await dbService.findOne({ model: Booking, filter: { _id: req.params.id } });
+
+    if (!booking) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    if (booking.status === 'cancelled') {
+      await session.abortTransaction();
+      return res.status(400).json({ message: 'Booking already cancelled' });
+    }
+
+    await dbService.findByIdAndUpdate({
+      model: Booking,
+      id: booking._id,
+      data: { status: 'cancelled' },
+    });
+
+    if (booking.table) {
+      await promoteWaitlist(booking.table, booking.startTime, booking.endTime, session);
+    }
+
+    await session.commitTransaction();
+    return res.json({ message: 'Booking cancelled successfully' });
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
+});
