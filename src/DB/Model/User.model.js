@@ -45,6 +45,7 @@ export const userSchema = new Schema(
     },
     DOB: Date,
     phoneNumber: String,
+    image: String,
     role: {
       type: String,
       enum: Object.values(roleTypes),
