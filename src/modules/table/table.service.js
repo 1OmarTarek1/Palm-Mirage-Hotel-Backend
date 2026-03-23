@@ -67,3 +67,14 @@ export const updateTable = asyncHandler(async (req, res) => {
     throw error;
   }
 });
+
+//delete
+export const deleteTable = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const table = await dbService.findByIdAndDelete({ model: Table, id });
+
+  if (!table) return res.status(404).json({ message: 'Table not found' });
+
+  res.json({ message: 'Table deleted successfully' });
+});
