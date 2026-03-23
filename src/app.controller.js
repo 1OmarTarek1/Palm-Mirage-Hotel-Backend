@@ -1,4 +1,5 @@
 import connectDB from "./DB/conenction.js";
+import cors from "cors";
 import authController from "./modules/auth/auth.controller.js";
 import userController from "./modules/user/user.controller.js";
 import activityCategoryController from "./modules/activityCategory/activityCategory.controller.js";
@@ -15,7 +16,15 @@ import rateLimit from "express-rate-limit";
 // });
 
 const bootstrap = (app, express) => {
-  var whitelist = [process.env.ORAGIN.split(",") || []];
+  const whitelist = process.env.ORAGIN?.split(",").map((o) => o.trim()) || [];
+
+  // Allow frontend origins (from .env.dev ORAGIN) to call our API and send cookies
+  app.use(
+    cors({
+      origin: whitelist,
+      credentials: true,
+    })
+  );
 
   //   app.use("/auth", limiter);
   //   app.use(limiter);
