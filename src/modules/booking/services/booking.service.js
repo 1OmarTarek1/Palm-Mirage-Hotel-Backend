@@ -130,3 +130,33 @@ export const createBooking = asyncHandler(async (req, res) => {
     session.endSession();
   }
 });
+
+ //GET AVAILABLE TABLES 
+ 
+export const getAvailableTables = asyncHandler(async (req, res) => {
+  const { date, time, guests } = req.query;
+  const startTime = new Date(`${date}T${time}:00`);
+  const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000);
+
+  const bookedBookings = await dbService.findAll({
+    model: Booking,
+    filter: {
+      $or: [
+        { startTime: { $lt: endTime, $gte: startTime } },
+        { endTime: { $gt: startTime, $lte: endTime } },
+        { startTime: { $lte: startTime }, endTime: { $gte: endTime } },
+      ],
+      status: { $ne: 'cancelled' },
+    },
+    select: 'table',
+  });
+
+  const bookedTableIds = bookedBookings.map((b) => b.table).filter(Boolean);
+
+  const availableTables = await dbService.findAll({
+    model: Table,
+    filter: { _id: { $nin: bookedTableIds }, chairs: { $gte: guests } },
+  });
+
+  return res.json({ message: 'Available tables', tables: availableTables });
+});
