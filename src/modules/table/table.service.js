@@ -6,7 +6,10 @@ export const createTable = asyncHandler(async (req, res) => {
   const { number, chairs } = req.body;
 
   try {
-    const table = await dbService.create({ model: Table, data: { number, chairs } });
+    const table = await dbService.create({
+      model: Table,
+      data: { number, chairs },
+    });
     res.status(201).json({ message: 'Table created', table });
   } catch (error) {
     if (error.code === 11000) {
@@ -14,4 +17,9 @@ export const createTable = asyncHandler(async (req, res) => {
     }
     throw error;
   }
+});
+//get
+export const getTables = asyncHandler(async (req, res) => {
+  const tables = await dbService.findAll({ model: Table });
+  res.json({ tables });
 });
