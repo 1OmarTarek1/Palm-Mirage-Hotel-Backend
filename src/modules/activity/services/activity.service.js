@@ -2,19 +2,10 @@ import { asyncHandler } from "../../../utils/response/error.response.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 import * as dbService from "../../../DB/db.service.js";
 import { activityModel } from "../../../DB/Model/Activity.model.js";
-import { activityCategoryModel } from "../../../DB/Model/ActivityCategory.model.js";
 import cloudinary from "../../../utils/multer/cloudinary.js";
 
 export const createActivity = asyncHandler(async (req, res, next) => {
   const { category, label, title, description, stats, highlights, icon } = req.body;
-
-  const categoryExists = await dbService.findOne({
-    model: activityCategoryModel,
-    filter: { _id: category },
-  });
-  if (!categoryExists) {
-    return next(new Error("Category not found", { cause: 404 }));
-  }
 
   const titleExists = await dbService.findOne({
     model: activityModel,
@@ -88,8 +79,7 @@ export const getAllActivities = asyncHandler(async (req, res, next) => {
       .find(filter)
       .sort(sortBy)
       .skip(skip)
-      .limit(Number(limit))
-      .populate({ path: "category", select: "label icon" }),
+      .limit(Number(limit)),
     activityModel.countDocuments(filter),
   ]);
 
@@ -111,7 +101,6 @@ export const getActivityById = asyncHandler(async (req, res, next) => {
   const activity = await dbService.findOne({
     model: activityModel,
     filter: { _id: req.params.id },
-    populate: [{ path: "category", select: "label icon" }],
   });
 
   if (!activity) {
@@ -131,16 +120,6 @@ export const updateActivity = asyncHandler(async (req, res, next) => {
   });
   if (!existing) {
     return next(new Error("Activity not found", { cause: 404 }));
-  }
-
-  if (category) {
-    const categoryExists = await dbService.findOne({
-      model: activityCategoryModel,
-      filter: { _id: category },
-    });
-    if (!categoryExists) {
-      return next(new Error("Category not found", { cause: 404 }));
-    }
   }
 
   if (title && title !== existing.title) {
@@ -186,7 +165,6 @@ export const updateActivity = asyncHandler(async (req, res, next) => {
     filter: { _id: id },
     data: updateData,
     options: { new: true },
-    populate: [{ path: "category", select: "label icon" }],
   });
 
   return successResponse({ res, data: { activity } });
