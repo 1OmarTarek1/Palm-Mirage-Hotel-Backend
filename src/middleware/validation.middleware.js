@@ -32,6 +32,9 @@ export const generalFields = {
   file: joi.object(fileobject),
 };
 
+
+
+
 export const validation = (schema) => {
   return (req, res, next) => {
     const inputDate = { ...req.body, ...req.params, ...req.query };
