@@ -1,6 +1,6 @@
 import Table from '../../DB/Model/table.model.js';
 import { asyncHandler } from '../../../src/utils/response/error.response.js';
-import * as dbService from '../../../DB/db.service.js';
+import * as dbService from '../../DB/db.service.js';
 
 export const createTable = asyncHandler(async (req, res) => {
   const { number, chairs } = req.body;
