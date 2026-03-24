@@ -16,7 +16,7 @@ export const decodeToken = async ({ authorization = "", tokenType = tokenTypes.a
   let accessSignature = "";
   let refreshSignature = "";
   switch (bearer) {
-    case "System":
+    case "admin":
       accessSignature = process.env.SYSTEM_ACCESS_TOKEN;
       refreshSignature = process.env.SYSTEM_REFRESH_TOKEN;
       break;
