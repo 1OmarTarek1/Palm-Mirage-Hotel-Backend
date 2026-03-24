@@ -22,5 +22,5 @@ router.get(
   validation(validators.getAvailableTables),
   getAvailableTables
 );
-router.patch('/cancel/:id', authentication(), cancelBooking);
+router.delete('/cancel/:number', authentication(), cancelBooking);
 export default router;

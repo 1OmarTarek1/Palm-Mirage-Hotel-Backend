@@ -1,25 +1,25 @@
 import mongoose from 'mongoose';
-import Booking from '../../../DB/Model/booking.model.js';
+import Booking from '../../../DB/Model/bookingTable.model.js';
 import Table from '../../../DB/Model/table.model.js';
 import { asyncHandler } from '../../../utils/response/error.response.js';
-import * as dbService from '../../DB/db.service.js';
+import * as dbService from '../../../DB/db.service.js';
 
-// CREATE OR AUTO ASSIGN BOOKING WITH TRANSACTION & WAITLIST 
+// CREATE OR AUTO ASSIGN BOOKING WITH TRANSACTION & WAITLIST
 export const createBooking = asyncHandler(async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { tableId, date, time, guests } = req.body;
+    const { number, date, time, guests } = req.body; // number = table number
     const startTime = new Date(`${date}T${time}:00`);
     const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000);
 
-    // Auto-assign table if tableId not provided
     let table;
-    if (tableId) {
+
+    if (number) {
       table = await dbService.findOne({
         model: Table,
-        filter: { _id: tableId },
+        filter: { number }, // search by table number
       });
       if (!table) {
         await session.abortTransaction();
@@ -35,14 +35,12 @@ export const createBooking = asyncHandler(async (req, res) => {
       const tables = await dbService.findAll({
         model: Table,
         filter: { chairs: { $gte: guests } },
-        skip: 0,
-        limit: 1000,
       });
       for (let t of tables) {
         const conflict = await dbService.findOne({
           model: Booking,
           filter: {
-            table: t._id,
+            tableNumber: t.number,
             $or: [
               { startTime: { $lt: endTime, $gte: startTime } },
               { endTime: { $gt: startTime, $lte: endTime } },
@@ -51,7 +49,6 @@ export const createBooking = asyncHandler(async (req, res) => {
             status: { $ne: 'cancelled' },
           },
         });
-
         if (!conflict) {
           table = t;
           break;
@@ -59,12 +56,12 @@ export const createBooking = asyncHandler(async (req, res) => {
       }
     }
 
-    // 2️⃣ Waitlist
+    // WAITLIST
     if (!table) {
       const waitlistBooking = await dbService.create({
         model: Booking,
         data: {
-          table: null,
+          tableNumber: null,
           user: req.user._id,
           startTime,
           endTime,
@@ -72,7 +69,6 @@ export const createBooking = asyncHandler(async (req, res) => {
           status: 'pending',
         },
       });
-
       await session.commitTransaction();
       return res.status(200).json({
         message: 'All tables are booked. You are added to the waitlist.',
@@ -80,18 +76,17 @@ export const createBooking = asyncHandler(async (req, res) => {
       });
     }
 
-    // 3️⃣ Prevent duplicate booking
+    // PREVENT DUPLICATE
     const duplicate = await dbService.findOne({
       model: Booking,
       filter: {
-        table: table._id,
+        tableNumber: table.number,
         user: req.user._id,
         startTime,
         endTime,
         status: { $ne: 'cancelled' },
       },
     });
-
     if (duplicate) {
       await session.abortTransaction();
       return res
@@ -99,11 +94,11 @@ export const createBooking = asyncHandler(async (req, res) => {
         .json({ message: 'You already booked this table at this time' });
     }
 
-    // 4️⃣ Create confirmed booking
+    // CREATE CONFIRMED BOOKING
     const booking = await dbService.create({
       model: Booking,
       data: {
-        table: table._id,
+        tableNumber: table.number,
         user: req.user._id,
         startTime,
         endTime,
@@ -116,8 +111,8 @@ export const createBooking = asyncHandler(async (req, res) => {
 
     const populatedBooking = await dbService.findOne({
       model: Booking,
-      filter: { _id: booking._id },
-      populate: ['table', 'user'],
+      filter: { tableNumber: table.number, user: req.user._id, startTime },
+      populate: ['user'],
     });
 
     return res
@@ -131,8 +126,7 @@ export const createBooking = asyncHandler(async (req, res) => {
   }
 });
 
- //GET AVAILABLE TABLES 
-
+// GET AVAILABLE TABLES
 export const getAvailableTables = asyncHandler(async (req, res) => {
   const { date, time, guests } = req.query;
   const startTime = new Date(`${date}T${time}:00`);
@@ -148,68 +142,101 @@ export const getAvailableTables = asyncHandler(async (req, res) => {
       ],
       status: { $ne: 'cancelled' },
     },
-    select: 'table',
+    select: 'tableNumber',
   });
 
-  const bookedTableIds = bookedBookings.map((b) => b.table).filter(Boolean);
+  const bookedTableNumbers = bookedBookings
+    .map((b) => b.tableNumber)
+    .filter(Boolean);
 
   const availableTables = await dbService.findAll({
     model: Table,
-    filter: { _id: { $nin: bookedTableIds }, chairs: { $gte: guests } },
+    filter: { number: { $nin: bookedTableNumbers }, chairs: { $gte: guests } },
   });
 
   return res.json({ message: 'Available tables', tables: availableTables });
 });
 
-
-// PROMOTE WAITLIST BOOKINGS 
-export const promoteWaitlist = async (tableId, startTime, endTime, session) => {
+// PROMOTE WAITLIST BOOKINGS
+export const promoteWaitlist = async (
+  tableNumber,
+  startTime,
+  endTime,
+  session
+) => {
   const nextInWaitlist = await dbService.findOne({
     model: Booking,
-    filter: { table: null, startTime, endTime, status: 'pending' },
+    filter: { tableNumber: null, startTime, endTime, status: 'pending' },
     options: { sort: { createdAt: 1 } },
   });
 
   if (nextInWaitlist) {
-    await dbService.findByIdAndUpdate({
+    await dbService.findOneAndUpdate({
       model: Booking,
-      id: nextInWaitlist._id,
-      data: { table: tableId, status: 'confirmed' },
+      filter: { tableNumber: null, user: nextInWaitlist.user, startTime },
+      data: { tableNumber, status: 'confirmed' },
     });
   }
-}
+};
 
-
- //CANCEL BOOKING 
 export const cancelBooking = asyncHandler(async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const booking = await dbService.findOne({ model: Booking, filter: { _id: req.params.id } });
+    console.log('req.params.number:', req.params.number);
+
+    const tableNumber = parseInt(req.params.number, 10);
+    console.log('Parsed tableNumber:', tableNumber);
+
+    if (!tableNumber) {
+      return res.status(400).json({ message: 'Invalid table number' });
+    }
+
+    // نجيب أقرب حجز مؤكد للترابيزة
+    const booking = await dbService.findOne({
+      model: Booking,
+      filter: {
+        tableNumber,
+        status: 'confirmed',
+        startTime: { $gte: new Date() },
+      },
+      options: { sort: { startTime: 1 } }, // أقرب حجز
+    });
 
     if (!booking) {
       await session.abortTransaction();
-      return res.status(404).json({ message: 'Booking not found' });
+      return res
+        .status(404)
+        .json({ message: 'No upcoming booking found for this table' });
     }
 
+    // لو الحجز موجود مسبقاً ملغى
     if (booking.status === 'cancelled') {
       await session.abortTransaction();
       return res.status(400).json({ message: 'Booking already cancelled' });
     }
 
-    await dbService.findByIdAndUpdate({
+    // إلغاء الحجز
+    await dbService.findOneAndUpdate({
       model: Booking,
-      id: booking._id,
+      filter: { tableNumber, startTime: booking.startTime },
       data: { status: 'cancelled' },
     });
 
-    if (booking.table) {
-      await promoteWaitlist(booking.table, booking.startTime, booking.endTime, session);
-    }
+    // ترقية أي waitlist للحجز الملغي
+    await promoteWaitlist(
+      booking.tableNumber,
+      booking.startTime,
+      booking.endTime,
+      session
+    );
 
     await session.commitTransaction();
-    return res.json({ message: 'Booking cancelled successfully' });
+    return res.json({
+      message: 'Booking cancelled successfully',
+      cancelledBooking: booking,
+    });
   } catch (err) {
     await session.abortTransaction();
     throw err;
