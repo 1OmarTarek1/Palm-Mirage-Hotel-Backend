@@ -58,3 +58,11 @@ export const changePassword = joi
       .required(),
   })
   .required();
+
+export const loginWithGoogle = joi
+  .object()
+  .keys({
+    idToken: joi.string().required(),
+    mode: joi.string().valid('login', 'register').default('login'),
+  })
+  .required();

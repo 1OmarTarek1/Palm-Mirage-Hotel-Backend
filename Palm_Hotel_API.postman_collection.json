@@ -1,0 +1,464 @@
+{
+	"info": {
+		"_postman_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+		"name": "Palm Hotel API",
+		"description": "Complete API collection for Palm Hotel Backend.\n\n## Setup\n1. Run **Auth > Login** or **Auth > Google Sign-in** to get your token (auto-saved)\n2. Use the Activity Category and Activity folders for CRUD\n\n## Variables\n- `base_url` → http://localhost:3000\n- `token` → auto-set after login\n- `category_id` → auto-set after creating a category\n- `activity_id` → auto-set after creating an activity",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "category_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "activity_id",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Auth",
+			"description": "Authentication endpoints.",
+			"item": [
+				{
+					"name": "Signup",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userName\": \"Admin User\",\n  \"country\": \"Egypt\",\n  \"email\": \"admin@palmhotel.com\",\n  \"password\": \"Admin@1234\",\n  \"confirmationPassword\": \"Admin@1234\",\n  \"phoneNumber\": \"01012345678\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/signup",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "signup"]
+						},
+						"description": "Register a new user account."
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Email",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@palmhotel.com\",\n  \"code\": \"1234\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/confirm-email",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "confirm-email"]
+						},
+						"description": "Confirm email using the 4-digit OTP sent to your inbox."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.data && res.data.accessToken) {",
+									"    pm.collectionVariables.set('token', res.data.accessToken);",
+									"    console.log('Token saved');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@palmhotel.com\",\n  \"password\": \"Admin@1234\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Login and auto-save the access token."
+					},
+					"response": []
+				},
+				{
+					"name": "Google Sign-in / Sign-up",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.data && res.data.accessToken) {",
+									"    pm.collectionVariables.set('token', res.data.accessToken);",
+									"    console.log('Token saved from Google auth');",
+									"}",
+									"if (res.data && res.data.isNewUser !== undefined) {",
+									"    console.log(res.data.isNewUser ? 'New account created via Google' : 'Existing user logged in via Google');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"idToken\": \"PASTE_GOOGLE_ID_TOKEN_HERE\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login-google",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login-google"]
+						},
+						"description": "Sign in or sign up using Google.\n\nThe `idToken` comes from Google Sign-In on the frontend (via `google.accounts.id.initialize`).\n\n**How to get an idToken for testing:**\n1. Go to: https://developers.google.com/oauthplayground\n2. Or use the Google Sign-In button in the frontend\n3. The response includes `isNewUser` to indicate if this was a new signup or existing login\n\n**What happens:**\n- If email doesn't exist → creates a new account (provider: google, isConfirmed: true)\n- If email exists with Google provider → logs in\n- If email exists with system provider → returns error (use normal login instead)"
+					},
+					"response": []
+				},
+				{
+					"name": "Google Sign-in — Missing Token (400)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login-google",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login-google"]
+						},
+						"description": "Should fail — idToken is required."
+					},
+					"response": []
+				},
+				{
+					"name": "Google Sign-in — Invalid Token (500)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"idToken\": \"invalid.token.here\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login-google",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login-google"]
+						},
+						"description": "Should fail — invalid Google idToken."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Activity Category",
+			"description": "CRUD operations for activity categories.\n\n**Allowed icons:** Ship, Landmark, Mountain, Palette, CloudSun, ChefHat",
+			"item": [
+				{
+					"name": "Create Category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.data && res.data.category && res.data.category._id) {",
+									"    pm.collectionVariables.set('category_id', res.data.category._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "System {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"label\": \"Nile River Adventures\",\n  \"icon\": \"Ship\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/activity-category",
+							"host": ["{{base_url}}"],
+							"path": ["activity-category"]
+						},
+						"description": "Create a new activity category. Requires admin auth.\nThe created category `_id` is auto-saved to `{{category_id}}`."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activity-category",
+							"host": ["{{base_url}}"],
+							"path": ["activity-category"]
+						},
+						"description": "Retrieve all activity categories. Public endpoint."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activity-category/{{category_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["activity-category", "{{category_id}}"]
+						},
+						"description": "Retrieve a single category by its ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Category",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "System {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"label\": \"Nile River Expeditions\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/activity-category/{{category_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["activity-category", "{{category_id}}"]
+						},
+						"description": "Update category label or icon. Requires admin auth."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Category",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{ "key": "Authorization", "value": "System {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/activity-category/{{category_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["activity-category", "{{category_id}}"]
+						},
+						"description": "Delete a category. Will fail if activities are still referencing it."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Activity",
+			"description": "CRUD operations for activities with image upload, filtering, search, sorting, and pagination.",
+			"item": [
+				{
+					"name": "Create Activity (with image)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.data && res.data.activity && res.data.activity._id) {",
+									"    pm.collectionVariables.set('activity_id', res.data.activity._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "System {{token}}" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "category", "value": "{{category_id}}", "type": "text" },
+								{ "key": "label", "value": "BEYOND THE BANKS", "type": "text" },
+								{ "key": "title", "value": "Luxury Nile River Cruise", "type": "text" },
+								{ "key": "description", "value": "Sail the eternal waters of the Nile on a traditional Felucca or embark on a luxury sunset cruise.", "type": "text" },
+								{ "key": "stats[0][value]", "value": "25+", "type": "text" },
+								{ "key": "stats[0][label]", "value": "VESSELS", "type": "text" },
+								{ "key": "highlights[0]", "value": "Private felucca sunset sail", "type": "text" },
+								{ "key": "highlights[1]", "value": "Luxury dinner cruise with live music", "type": "text" },
+								{ "key": "icon", "value": "Ship", "type": "text" },
+								{ "key": "image", "type": "file", "src": "", "description": "Select image (png, jpg, jpeg, webp — max 5MB)" }
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/activity",
+							"host": ["{{base_url}}"],
+							"path": ["activity"]
+						},
+						"description": "Create a new activity with form-data (supports image upload). The `_id` is auto-saved to `{{activity_id}}`."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Activities",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activity",
+							"host": ["{{base_url}}"],
+							"path": ["activity"]
+						},
+						"description": "Get all activities with default pagination (page 1, limit 10)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Activities — Filter by Category",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activity?category={{category_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["activity"],
+							"query": [{ "key": "category", "value": "{{category_id}}" }]
+						},
+						"description": "Filter activities by category ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Activities — Search",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activity?search=nile",
+							"host": ["{{base_url}}"],
+							"path": ["activity"],
+							"query": [{ "key": "search", "value": "nile" }]
+						},
+						"description": "Search activities by keyword (title, description, label)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Activities — Sort + Paginate",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activity?sort=newest&page=1&limit=5",
+							"host": ["{{base_url}}"],
+							"path": ["activity"],
+							"query": [
+								{ "key": "sort", "value": "newest" },
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "5" }
+							]
+						},
+						"description": "Sort: newest, oldest, title_asc, title_desc. Pagination: page + limit."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Activity By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activity/{{activity_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["activity", "{{activity_id}}"]
+						},
+						"description": "Retrieve a single activity with populated category."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Activity",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Authorization", "value": "System {{token}}" }
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "title", "value": "Premium Nile River Cruise", "type": "text" },
+								{ "key": "image", "type": "file", "src": "", "description": "Optional: new image" }
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/activity/{{activity_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["activity", "{{activity_id}}"]
+						},
+						"description": "Update activity fields. Uses form-data for optional image replacement."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Activity",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{ "key": "Authorization", "value": "System {{token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/activity/{{activity_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["activity", "{{activity_id}}"]
+						},
+						"description": "Delete an activity and its Cloudinary image."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
