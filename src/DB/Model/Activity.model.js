@@ -1,12 +1,16 @@
 import mongoose, { Schema, model } from "mongoose";
-import { allowedIcons } from "./ActivityCategory.model.js";
+
+export const allowedIcons = ["Ship", "Landmark", "Mountain", "Palette", "CloudSun", "ChefHat"];
+
+export const allowedCategories = ["nile", "heritage", "desert", "cultural", "balloon", "culinary"];
 
 const activitySchema = new Schema(
   {
     category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "ActivityCategory",
+      type: String,
       required: true,
+      enum: allowedCategories,
+      trim: true,
     },
     label: {
       type: String,

@@ -11,7 +11,9 @@ const router = Router()
 router.post("/signup", validation(validators.signup), registrationService.signup)
 router.patch("/confirm-email", validation(validators.confirmEmail), registrationService.confirmEmail)
 router.post("/login", validation(validators.login), loginService.login)
-// router.post('/loginWithGmail', loginService.loginWithGmail)
+router.post("/login-google", validation(validators.loginWithGoogle), loginService.loginWithGmail)
+
+router.get("/me", authentication(), loginService.getMe)
 
 router.get("/refresh-token", loginService.refreshToken)
  router.patch("/forgot-password", validation(validators.forgetPassword), loginService.forgotPassword)

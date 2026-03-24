@@ -1,6 +1,6 @@
 import joi from "joi";
 import { generalFields } from "../../middleware/validation.middleware.js";
-import { allowedIcons } from "../../DB/Model/ActivityCategory.model.js";
+import { allowedIcons, allowedCategories } from "../../DB/Model/Activity.model.js";
 
 const statSchema = joi.object({
   value: joi.string().required(),
@@ -10,7 +10,7 @@ const statSchema = joi.object({
 export const createActivity = joi
   .object()
   .keys({
-    category: generalFields.id.required(),
+    category: joi.string().valid(...allowedCategories).required(),
     label: joi.string().min(2).max(100).trim().required(),
     title: joi.string().min(2).max(200).trim().required(),
     description: joi.string().trim().required(),
@@ -25,7 +25,7 @@ export const updateActivity = joi
   .object()
   .keys({
     id: generalFields.id.required(),
-    category: generalFields.id,
+    category: joi.string().valid(...allowedCategories),
     label: joi.string().min(2).max(100).trim(),
     title: joi.string().min(2).max(200).trim(),
     description: joi.string().trim(),
@@ -46,7 +46,7 @@ export const paramId = joi
 export const queryFilter = joi
   .object()
   .keys({
-    category: generalFields.id,
+    category: joi.string().valid(...allowedCategories),
     search: joi.string().trim().max(200).allow(""),
     icon: joi.string().valid(...allowedIcons),
     sort: joi.string().valid("newest", "oldest", "title_asc", "title_desc"),
