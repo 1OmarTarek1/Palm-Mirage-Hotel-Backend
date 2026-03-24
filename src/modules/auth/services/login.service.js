@@ -29,9 +29,9 @@ export const login = asyncHandler(async (req, res, next) => {
   if (!user) {
     return next(new Error('user not found'), { cause: 404 });
   }
-  if (!user.isConfirmed) {
-    return next(new Error('Please Verify your Account'), { cause: 400 });
-  }
+  // if (!user.isConfirmed) {
+  //   return next(new Error('Please Verify your Account'), { cause: 400 });
+  // }
   if (user.bannedAt != undefined) {
     return next(new Error('your account is  banned'), { cause: 400 });
   }
