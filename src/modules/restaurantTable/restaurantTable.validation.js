@@ -5,16 +5,13 @@ export const createTable = Joi.object({
   chairs: Joi.number().integer().min(1).required(),
 });
 
-export const getTableById = Joi.object({
-  id: Joi.string().hex().length(24).required(),
-});
 
 export const updateTable = Joi.object({
-  id: Joi.string().hex().length(24).required(),
   number: Joi.number().integer().min(1),
   chairs: Joi.number().integer().min(1),
 });
 
 export const deleteTable = Joi.object({
-  id: Joi.string().hex().length(24).required(),
+  number: Joi.number().integer().min(1),
 });
+

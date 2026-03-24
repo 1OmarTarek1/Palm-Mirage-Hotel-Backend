@@ -2,14 +2,14 @@ import mongoose from 'mongoose';
 
 const bookingSchema = new mongoose.Schema(
   {
-    table: {
-      type: mongoose.Schema.Types.ObjectId,
+    tableNumber: {
+      type: Number,
       ref: 'Table',
       required: function () {
-        // table مطلوب فقط للحجوزات المؤكدة
         return this.status !== 'pending';
       },
     },
+
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -37,7 +37,7 @@ const bookingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-bookingSchema.index({ table: 1, startTime: 1, endTime: 1 });
+bookingSchema.index({ tableNumber: 1, startTime: 1, endTime: 1 });
 bookingSchema.index({ user: 1 });
 
 const Booking =
