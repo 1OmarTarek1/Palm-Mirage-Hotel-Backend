@@ -9,9 +9,9 @@ const menuSchema = new mongoose.Schema(
     price: { type: Number, required: true },
 
     category: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',
       required: true,
-      enum: ['Desserts', 'Appetizer', 'Restaurant', 'Drinks'],
     },
 
     image: { type: String }, // Cloudinary URL
