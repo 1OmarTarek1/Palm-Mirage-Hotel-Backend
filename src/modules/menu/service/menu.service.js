@@ -71,3 +71,20 @@ export const getMenu = asyncHandler(async (req, res) => {
     categoryMenuItems,
   });
 });
+
+
+// Get Menu Items by Category
+export const getMenuItemsByCategory = asyncHandler(async (req, res) => {
+  const { categoryId } = req.params;
+
+  const items = await dbService.find({
+    model: Menu,
+    filter: { category: categoryId },
+    populate: [{ path: 'category', select: 'label' }],
+  });
+
+  return res.status(200).json({
+    message: 'Menu items retrieved',
+    items,
+  });
+});
