@@ -2,12 +2,6 @@ import mongoose, { Schema, model } from "mongoose";
 
 const RoomSchema = new Schema(
   {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-
     roomName: {
       type: String,
       required: true,
@@ -23,6 +17,7 @@ const RoomSchema = new Schema(
       type: String,
       enum: ["single", "double", "twin", "deluxe", "family"],
       required: true,
+      index: true,
     },
 
     price: {
@@ -33,11 +28,18 @@ const RoomSchema = new Schema(
     discount: {
       type: Number,
       default: 0,
+      min: 0,
+      max: 100,
+    },
+
+    finalPrice: {
+      type: Number,
     },
 
     capacity: {
       type: Number,
       default: 1,
+      min: 1,
     },
 
     facilities: [
@@ -62,6 +64,7 @@ const RoomSchema = new Schema(
       default: false,
     },
 
+    // flag (real availability comes from bookings)
     isAvailable: {
       type: Boolean,
       default: true,
@@ -91,11 +94,13 @@ const RoomSchema = new Schema(
     checkInTime: {
       type: String,
       default: "14:00",
+      match: /^([01]\d|2[0-3]):([0-5]\d)$/,
     },
 
     checkOutTime: {
       type: String,
       default: "12:00",
+      match: /^([01]\d|2[0-3]):([0-5]\d)$/,
     },
 
     cancellationPolicy: {
@@ -104,5 +109,20 @@ const RoomSchema = new Schema(
   },
   { timestamps: true },
 );
+
+// Generate slug + calculate final price
+RoomSchema.pre("save", function () {
+  // generate slug
+  if (this.isModified("roomName")) {
+    this.slug = this.roomName.toLowerCase().trim().replace(/\s+/g, "-");
+  }
+
+  // calculate final price
+  this.finalPrice = this.price - (this.price * this.discount) / 100;
+});
+
+// Indexes (for filtering & sorting)
+RoomSchema.index({ price: 1 });
+RoomSchema.index({ rating: -1 });
 
 export const RoomModel = mongoose.models.Room || model("Room", RoomSchema);
