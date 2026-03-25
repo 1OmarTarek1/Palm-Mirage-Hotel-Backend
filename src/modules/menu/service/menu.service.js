@@ -109,7 +109,7 @@ export const getMenuItemById = asyncHandler(async (req, res) => {
   });
 });
 
- Update Menu Item
+ //Update Menu Item
 export const updateMenuItem = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, description, price, category, available } = req.body;
@@ -144,6 +144,25 @@ export const updateMenuItem = asyncHandler(async (req, res) => {
 
   return res.status(200).json({
     message: 'Menu item updated',
+    item,
+  });
+});
+
+// Delete Menu Item
+export const deleteMenuItem = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const item = await dbService.findOneAndDelete({
+    model: Menu,
+    filter: { _id: id },
+  });
+
+  if (!item) {
+    return res.status(404).json({ message: 'Menu item not found' });
+  }
+
+  return res.status(200).json({
+    message: 'Menu item deleted',
     item,
   });
 });
