@@ -4,6 +4,7 @@ import authController from './modules/auth/auth.controller.js';
 import userController from './modules/user/user.controller.js';
 import activityController from './modules/activity/activity.controller.js';
 import roomController from './modules/rooms/room.controller.js';
+import facilityController from './modules/facility/facility.controller.js';
 import paymentController from './modules/payment/payment.controller.js';
 import { globalErrorHandling } from './utils/response/error.response.js';
 import helmet from 'helmet';
@@ -39,6 +40,7 @@ const bootstrap = (app, express) => {
   app.use('/user', userController);
   app.use('/activity', activityController);
   app.use('/room', roomController);
+  app.use("/facilities", facilityController);
   app.use('/payment', paymentController);
   app.use('/booking', bookingController);
   app.use('/tables', tableController);
