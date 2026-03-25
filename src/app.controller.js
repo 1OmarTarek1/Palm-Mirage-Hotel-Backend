@@ -10,7 +10,7 @@ import helmet from 'helmet';
 // import rateLimit from "express-rate-limit";
 import bookingController from './modules/bookingTable/booking.controller.js';
 import tableController from './modules/restaurantTable/restaurantTable.controller.js';
-
+import menuController from './modules/menu/menu.controller.js'
 // const limiter = rateLimit({
 //   limit: 5,
 //   windowMs: 2 * 6 * 1000,
@@ -42,6 +42,7 @@ const bootstrap = (app, express) => {
   app.use('/payment', paymentController);
   app.use('/booking', bookingController);
   app.use('/tables', tableController);
+  app.use('/menu',menuController)
   app.use('*', (req, res, next) => {
     return res.status(404).json({ message: 'Invalid routing' });
   });
