@@ -108,3 +108,42 @@ export const getMenuItemById = asyncHandler(async (req, res) => {
     item,
   });
 });
+
+ Update Menu Item
+export const updateMenuItem = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, description, price, category, available } = req.body;
+
+  if (category) {
+    const categoryExists = await dbService.findOne({
+      model: Category,
+      filter: { _id: category },
+    });
+    if (!categoryExists) {
+      return res.status(400).json({ message: 'Invalid category' });
+    }
+  }
+
+  const item = await dbService.findOneAndUpdate({
+    model: Menu,
+    filter: { _id: id },
+    data: {
+      name,
+      description,
+      price,
+      category,
+      available,
+      ...(req.file?.path && { image: req.file.path }),
+    },
+    options: { new: true },
+  });
+
+  if (!item) {
+    return res.status(404).json({ message: 'Menu item not found' });
+  }
+
+  return res.status(200).json({
+    message: 'Menu item updated',
+    item,
+  });
+});
