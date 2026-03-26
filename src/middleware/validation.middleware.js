@@ -16,7 +16,7 @@ export const fileobject = {
 const checkObjectId = (value, helper) => {
   return Types.ObjectId.isValid(value) ? true : helper.message("Invalid ObjectId");
 };
- 
+
 export const generalFields = {
   username: joi.string().min(2).max(30).trim(),
   country: joi.string().min(2).max(15).trim(),
@@ -31,7 +31,7 @@ export const generalFields = {
   fileobject,
   file: joi.object(fileobject),
 };
-
+ 
 export const validation = (schema) => {
   return (req, res, next) => {
     const inputDate = { ...req.body, ...req.params, ...req.query };
