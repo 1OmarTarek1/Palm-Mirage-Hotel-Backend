@@ -1,6 +1,7 @@
 import * as dbService from "../../../DB/db.service.js";
 import { RoomModel } from "../../../DB/Model/Room.model.js";
 import cloudinary from "../../../utils/multer/cloudinary.js";
+import { paginate } from "../../../utils/pagination/pagination.js";
 import { asyncHandler } from "../../../utils/response/error.response.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 
@@ -8,16 +9,19 @@ import { successResponse } from "../../../utils/response/success.response.js";
 export const createRoom = asyncHandler(async (req, res, next) => {
   const {
     roomName,
+    roomNumber,
     roomType,
     price,
-    discount,
+    finalPrice,
     capacity,
-    facilities,
+    discount,
     description,
+    facilities,
     floor,
-    cancellationPolicy,
+    rating,
     checkInTime,
     checkOutTime,
+    cancellationPolicy,
   } = req.body;
 
   let roomImagesData = [];
@@ -46,19 +50,21 @@ export const createRoom = asyncHandler(async (req, res, next) => {
   const newRoom = await dbService.create({
     model: RoomModel,
     data: {
-      // user: req.user._id,
       roomName,
+      roomNumber,
       roomType,
       price,
-      discount,
+      finalPrice,
       capacity,
-      facilities,
+      discount,
       description,
+      facilities,
       floor,
-      roomImages: roomImagesData,
-      cancellationPolicy,
+      rating,
       checkInTime,
       checkOutTime,
+      cancellationPolicy,
+      roomImages: roomImagesData,
     },
   });
 
@@ -69,7 +75,7 @@ export const createRoom = asyncHandler(async (req, res, next) => {
   });
 });
 
-// Get All Rooms
+// // Get All Rooms
 export const getAllRooms = asyncHandler(async (req, res, next) => {
   const {
     minPrice,
@@ -78,8 +84,8 @@ export const getAllRooms = asyncHandler(async (req, res, next) => {
     capacity,
     minRating,
     hasOffer,
-    page = 1,
-    limit = 10,
+    page,
+    limit,
   } = req.query;
 
   let filter = { isAvailable: true };
@@ -95,78 +101,72 @@ export const getAllRooms = asyncHandler(async (req, res, next) => {
     if (maxPrice) filter.price.$lte = Number(maxPrice);
   }
 
-  const skip = (page - 1) * limit;
-
-  const rooms = await dbService.findAll({
+  const result = await paginate({
+    page: Number(page),
+    size: Number(limit),
     model: RoomModel,
     filter,
     populate: ["facilities"],
-    skip,
-    limit: Number(limit),
   });
 
   return successResponse({
     res,
-    data: rooms,
+    data: result,
     message: "Rooms retrieved successfully",
   });
 });
 
-// Get Rooms with Offers
+// // Get Rooms with Offers
 export const getRoomsWithOffers = asyncHandler(async (req, res, next) => {
-  const { page = 1, limit = 10 } = req.query;
+  const { page, limit } = req.query;
 
-  const skip = (page - 1) * limit;
-
-  const rooms = await dbService.findAll({
+  const result = await paginate({
+    page: Number(page),
+    size: Number(limit),
     model: RoomModel,
     filter: { hasOffer: true, isAvailable: true },
     populate: ["facilities"],
-    skip,
-    limit: Number(limit),
     sort: "-discount",
   });
 
   return successResponse({
     res,
-    data: rooms,
+    data: result,
     message: "Rooms with offers retrieved successfully",
   });
 });
 
-// Get Top Rated Rooms
+// // Get Top Rated Rooms
 export const getTopRatedRooms = asyncHandler(async (req, res, next) => {
-  const { page = 1, limit = 10 } = req.query;
+  const { page, limit } = req.query;
 
-  const skip = (page - 1) * limit;
-
-  const rooms = await dbService.findAll({
+  const result = await paginate({
+    page: Number(page),
+    size: Number(limit),
     model: RoomModel,
     filter: {
       isAvailable: true,
       rating: { $gt: 0 },
     },
     populate: ["facilities"],
-    skip,
-    limit: Number(limit),
     sort: "-rating",
   });
 
   return successResponse({
     res,
-    data: rooms,
+    data: result,
     message: "Top rated rooms retrieved successfully",
   });
 });
 
-// Get Room By ID
+// // Get Room By ID
 export const getRoomById = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 
   const room = await dbService.findOne({
     model: RoomModel,
     filter: { _id: id },
-    populate: [{ path: "facilities" }, { path: "user", select: "name email" }],
+    populate: [{ path: "facilities" }],
   });
 
   if (!room) {
@@ -187,7 +187,7 @@ export const getRoomById = asyncHandler(async (req, res, next) => {
   });
 });
 
-// Update Room
+// // Update Room
 export const updateRoomById = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 
@@ -202,10 +202,46 @@ export const updateRoomById = asyncHandler(async (req, res, next) => {
 
   const updates = { ...req.body };
 
-  // protect system fields
   delete updates.rating;
   delete updates.reviewsCount;
   delete updates.viewsCount;
+
+  if (req.body.deletedImages?.length) {
+    await Promise.all(
+      req.body.deletedImages.map((public_id) =>
+        cloudinary.uploader.destroy(public_id)
+      )
+    );
+
+    room.roomImages = room.roomImages.filter(
+      (img) => !req.body.deletedImages.includes(img.public_id)
+    );
+  }
+
+  let newImages = [];
+
+  if (req.files?.length) {
+    newImages = await Promise.all(
+      req.files.map((file) => {
+        return new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: `${process.env.APP_NAME}/room` },
+            (error, result) => {
+              if (error) return reject(error);
+              resolve({
+                secure_url: result.secure_url,
+                public_id: result.public_id,
+              });
+            }
+          );
+
+          stream.end(file.buffer);
+        });
+      })
+    );
+  }
+
+  updates.roomImages = [...room.roomImages, ...newImages];
 
   const updatedRoom = await dbService.findByIdAndUpdate({
     model: RoomModel,
@@ -222,7 +258,7 @@ export const updateRoomById = asyncHandler(async (req, res, next) => {
   });
 });
 
-// Delete Room
+// // Delete Room
 export const deleteRoomById = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 

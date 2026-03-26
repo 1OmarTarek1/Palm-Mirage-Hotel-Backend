@@ -29,10 +29,10 @@ roomRouter.post(
 );
 roomRouter.patch(
   "/:id",
-  adminAuth,
-  validation(roomValidator.updateRoomValidation),
+  // adminAuth,
+  // validation(roomValidator.updateRoomValidation),
   roomService.updateRoomById,
 );
-roomRouter.delete("/:id", adminAuth, roomService.deleteRoomById);
+// roomRouter.delete("/:id", adminAuth, roomService.deleteRoomById);
 
 export default roomRouter;

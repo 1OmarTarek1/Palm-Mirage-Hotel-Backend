@@ -52,7 +52,6 @@ const RoomSchema = new Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Facility",
-        default: [],
       },
     ],
 
@@ -105,7 +104,7 @@ const RoomSchema = new Schema(
       type: String,
       default: "12:00",
       match: /^([01]\d|2[0-3]):([0-5]\d)$/,
-      required: true,
+      // required: true,
     },
 
     cancellationPolicy: {
@@ -115,7 +114,7 @@ const RoomSchema = new Schema(
   { timestamps: true },
 );
 
-// Generate slug + calculate final price
+// calculate final price
 RoomSchema.pre("save", function () {
   // calculate final price
   this.finalPrice = this.price - (this.price * this.discount) / 100;
