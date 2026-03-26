@@ -4,7 +4,8 @@ import * as validators from "./activity.validation.js";
 import { validation } from "../../middleware/validation.middleware.js";
 import { authentication, authorization } from "../../middleware/auth.middleware.js";
 import { roleTypes } from "../../DB/Model/User.model.js";
-import { uploadFile } from "../../utils/multer/cloud.multer.js";
+import { uploadCloudFile } from "../../utils/multer/cloud.multer.js";
+import { fileValidationTypes } from "../../utils/multer/local.multer.js";
 
 const router = Router();
 
@@ -12,7 +13,7 @@ router.post(
   "/",
   authentication(),
   authorization([roleTypes.admin]),
-  uploadFile.single("image"),
+  uploadCloudFile(fileValidationTypes.image).array("image",5),
   validation(validators.createActivity),
   activityService.createActivity
 );
@@ -25,7 +26,7 @@ router.patch(
   "/:id",
   authentication(),
   authorization([roleTypes.admin]),
-  uploadFile.single("image"),
+  uploadCloudFile().single("image"),
   validation(validators.updateActivity),
   activityService.updateActivity
 );

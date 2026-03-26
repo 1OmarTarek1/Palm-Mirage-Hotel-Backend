@@ -30,6 +30,7 @@ export const generalFields = {
   id: joi.string().custom(checkObjectId),
   fileobject,
   file: joi.object(fileobject),
+  
 };
 
 
