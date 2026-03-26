@@ -3,49 +3,71 @@ import { successResponse } from "../../../utils/response/success.response.js";
 import * as dbService from "../../../DB/db.service.js";
 import { activityModel } from "../../../DB/Model/Activity.model.js";
 import cloudinary from "../../../utils/multer/cloudinary.js";
+import cloud from "../../../utils/multer/cloudinary.js";
 
 export const createActivity = asyncHandler(async (req, res, next) => {
   const { category, label, title, description, stats, highlights, icon } = req.body;
 
-  const titleExists = await dbService.findOne({
-    model: activityModel,
-    filter: { title },
-  });
-  if (titleExists) {
-    return next(new Error("Activity with this title already exists", { cause: 409 }));
-  }
-
-  let image = {};
-  if (req.file) {
-    const uploadResult = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { folder: `${process.env.APP_NAME}/activities` },
-        (error, result) => {
-          if (error) return reject(error);
-          resolve(result);
-        }
-      );
-      stream.end(req.file.buffer);
-    });
-    image = { secure_url: uploadResult.secure_url, public_id: uploadResult.public_id };
+  if (req.files) {
+    const attacthments = [];
+    for (const file of req.files) {
+      const { secure_url, public_id } = await cloud.uploader.upload(file.path, {
+        folder: `${process.env.APP_NAME}/activities`,
+      });
+      attacthments.push({ secure_url, public_id });
+ 
+    }
+    req.body.attacthments = attacthments;
   }
 
   const activity = await dbService.create({
     model: activityModel,
     data: {
-      category,
-      label,
-      title,
-      description,
-      image,
-      stats: stats || [],
-      highlights: highlights || [],
-      icon,
-      createdBy: req.user._id,
+      ...req.body,
+      userId: req.user._id,
     },
   });
+  return successResponse({ res, status: 201, data: { activity }, message: "Activity created successfully" });
 
-  return successResponse({ res, status: 201, data: { activity } });
+  // const titleExists = await dbService.findOne({
+  //   model: activityModel,
+  //   filter: { title },
+  // });
+  // if (titleExists) {
+  //   return next(new Error("Activity with this title already exists", { cause: 409 }));
+  // }
+
+  // let image = {};
+  // if (req.file) {
+  //   const uploadResult = await new Promise((resolve, reject) => {
+  //     const stream = cloudinary.uploader.upload_stream(
+  //       { folder: `${process.env.APP_NAME}/activities` },
+  //       (error, result) => {
+  //         if (error) return reject(error);
+  //         resolve(result);
+  //       }
+  //     );
+  //     stream.end(req.file.buffer);
+  //   });
+  //   image = { secure_url: uploadResult.secure_url, public_id: uploadResult.public_id };
+  // }
+
+  // const activity = await dbService.create({
+  //   model: activityModel,
+  //   data: {
+  //     category,
+  //     label,
+  //     title,
+  //     description,
+  //     image,
+  //     stats: stats || [],
+  //     highlights: highlights || [],
+  //     icon,
+  //     createdBy: req.user._id,
+  //   },
+  // });
+
+  // return successResponse({ res, status: 201, data: { activity } });
 });
 
 export const getAllActivities = asyncHandler(async (req, res, next) => {
@@ -75,11 +97,7 @@ export const getAllActivities = asyncHandler(async (req, res, next) => {
   const skip = (Number(page) - 1) * Number(limit);
 
   const [activities, total] = await Promise.all([
-    activityModel
-      .find(filter)
-      .sort(sortBy)
-      .skip(skip)
-      .limit(Number(limit)),
+    activityModel.find(filter).sort(sortBy).skip(skip).limit(Number(limit)),
     activityModel.countDocuments(filter),
   ]);
 
