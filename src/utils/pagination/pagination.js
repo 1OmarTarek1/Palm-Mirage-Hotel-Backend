@@ -7,6 +7,7 @@ export const paginate = async ({
   filter = {},
   select = "",
   populate = [],
+  sort = "",
 }) => {
   page = page < 1 ? Number(process.env.PAGE) || 1 : Number(page);
   size = size < 1 ? Number(process.env.SIZE) || 10 : Number(size);
@@ -22,6 +23,7 @@ export const paginate = async ({
     select,
     skip,
     limit: size,
+    sort,
   });
 
   return { data, page, size, count };
