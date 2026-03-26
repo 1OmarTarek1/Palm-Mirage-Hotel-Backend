@@ -1,5 +1,6 @@
 import * as dbService from "../../../DB/db.service.js";
 import { RoomModel } from "../../../DB/Model/Room.model.js";
+import cloudinary from "../../../utils/multer/cloudinary.js";
 import { asyncHandler } from "../../../utils/response/error.response.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 
@@ -14,16 +15,38 @@ export const createRoom = asyncHandler(async (req, res, next) => {
     facilities,
     description,
     floor,
-    roomImages,
     cancellationPolicy,
     checkInTime,
     checkOutTime,
   } = req.body;
 
+  let roomImagesData = [];
+
+  if (req.files?.length) {
+    for (const file of req.files) {
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: `${process.env.APP_NAME}/room` },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          },
+        );
+
+        stream.end(file.buffer);
+      });
+
+      roomImagesData.push({
+        secure_url: uploadResult.secure_url,
+        public_id: uploadResult.public_id,
+      });
+    }
+  }
+
   const newRoom = await dbService.create({
     model: RoomModel,
     data: {
-      user: req.user._id,
+      // user: req.user._id,
       roomName,
       roomType,
       price,
@@ -32,7 +55,7 @@ export const createRoom = asyncHandler(async (req, res, next) => {
       facilities,
       description,
       floor,
-      roomImages,
+      roomImages: roomImagesData,
       cancellationPolicy,
       checkInTime,
       checkOutTime,
@@ -46,7 +69,7 @@ export const createRoom = asyncHandler(async (req, res, next) => {
   });
 });
 
-// Get All Rooms 
+// Get All Rooms
 export const getAllRooms = asyncHandler(async (req, res, next) => {
   const {
     minPrice,
@@ -121,12 +144,12 @@ export const getTopRatedRooms = asyncHandler(async (req, res, next) => {
     model: RoomModel,
     filter: {
       isAvailable: true,
-      rating: { $gt: 0 }, 
+      rating: { $gt: 0 },
     },
     populate: ["facilities"],
     skip,
     limit: Number(limit),
-    sort: "-rating", 
+    sort: "-rating",
   });
 
   return successResponse({
@@ -143,10 +166,7 @@ export const getRoomById = asyncHandler(async (req, res, next) => {
   const room = await dbService.findOne({
     model: RoomModel,
     filter: { _id: id },
-    populate: [
-      { path: "facilities" },
-      { path: "user", select: "name email" },
-    ],
+    populate: [{ path: "facilities" }, { path: "user", select: "name email" }],
   });
 
   if (!room) {
