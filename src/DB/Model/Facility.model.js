@@ -20,4 +20,4 @@ const facilitySchema = new Schema(
   { timestamps: true },
 );
 
-export default mongoose.models.Facility || model("Facility", facilitySchema);
+export const FacilityModel = mongoose.models.Facility || model("Facility", facilitySchema);
