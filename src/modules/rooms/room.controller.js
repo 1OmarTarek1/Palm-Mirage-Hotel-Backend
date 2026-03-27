@@ -8,7 +8,7 @@ import {
   authentication,
   authorization,
 } from "../../middleware/auth.middleware.js";
-import { uploadFile } from "../../utils/multer/cloud.multer.js";
+import { uploadCloudFile } from "../../utils/multer/cloud.multer.js";
 
 const roomRouter = Router();
 
@@ -23,7 +23,7 @@ roomRouter.get("/:id", roomService.getRoomById);
 roomRouter.post(
   "/",
   // adminAuth,
-  uploadFile.array("roomImages", 5),
+  uploadCloudFile().array("roomImages", 5),
   // validation(roomValidator.createRoomValidation),
   roomService.createRoom,
 );
