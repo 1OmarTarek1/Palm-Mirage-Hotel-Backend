@@ -19,13 +19,26 @@ import menuController from './modules/menu/menu.controller.js'
 // });
 
 const bootstrap = (app, express) => {
-  // Allow frontend origins (from .env.dev ORAGIN) to call our API and send cookies
-  const whitelist = process.env.ORAGIN?.split(',').map((o) => o.trim()) || [];
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5173',
+  ];
+  const envOrigins = (process.env.ORAGIN || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const whitelist = [...new Set([...defaultOrigins, ...envOrigins])];
 
-  // Allow frontend origins (from .env.dev ORAGIN) to call our API and send cookies
   app.use(
     cors({
-      origin: whitelist,
+      origin(origin, callback) {
+        if (!origin || whitelist.includes(origin)) {
+          return callback(null, origin || true);
+        }
+
+        return callback(new Error(`CORS blocked for origin: ${origin}`));
+      },
       credentials: true,
     })
   );
