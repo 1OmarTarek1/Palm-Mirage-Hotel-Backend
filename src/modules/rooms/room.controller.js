@@ -8,6 +8,7 @@ import {
   authentication,
   authorization,
 } from "../../middleware/auth.middleware.js";
+import { uploadFile } from "../../utils/multer/cloud.multer.js";
 
 const roomRouter = Router();
 
@@ -21,16 +22,17 @@ roomRouter.get("/:id", roomService.getRoomById);
 //  Admin Routes
 roomRouter.post(
   "/",
-  adminAuth,
-  validation(roomValidator.createRoomValidation),
+  // adminAuth,
+  uploadFile.array("roomImages", 5),
+  // validation(roomValidator.createRoomValidation),
   roomService.createRoom,
 );
 roomRouter.patch(
   "/:id",
-  adminAuth,
-  validation(roomValidator.updateRoomValidation),
+  // adminAuth,
+  // validation(roomValidator.updateRoomValidation),
   roomService.updateRoomById,
 );
-roomRouter.delete("/:id", adminAuth, roomService.deleteRoomById);
+// roomRouter.delete("/:id", adminAuth, roomService.deleteRoomById);
 
 export default roomRouter;

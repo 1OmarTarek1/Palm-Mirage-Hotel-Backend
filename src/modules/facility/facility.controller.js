@@ -12,8 +12,14 @@ facilityRouter.get("/", facilityService.getAllFacilities);
 facilityRouter.get("/:id", facilityService.getFacilityById);
 
 // Admin
-facilityRouter.post("/", adminAuth, facilityService.createFacility);
-facilityRouter.patch("/:id", adminAuth, facilityService.updateFacilityById);
-facilityRouter.delete("/:id", adminAuth, facilityService.deleteFacilityById);
+facilityRouter.post("/",
+    //  adminAuth, 
+     facilityService.createFacility);
+facilityRouter.patch("/:id",
+    //  adminAuth,
+      facilityService.updateFacilityById);
+facilityRouter.delete("/:id",
+    //  adminAuth,
+      facilityService.deleteFacilityById);
 
 export default facilityRouter;
