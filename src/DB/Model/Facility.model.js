@@ -1,6 +1,6 @@
 import mongoose, { Schema, model } from "mongoose";
 
-const facilitySchema = new Schema(
+export const facilitySchema = new Schema(
   {
     name: {
       type: String,
@@ -17,7 +17,7 @@ const facilitySchema = new Schema(
       type: String,
     },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
-export default mongoose.models.Facility || model("Facility", facilitySchema);
+export  const FacilityModel = mongoose.models.Facility || model("Facility", facilitySchema);

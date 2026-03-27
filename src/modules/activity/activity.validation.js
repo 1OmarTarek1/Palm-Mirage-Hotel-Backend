@@ -10,17 +10,22 @@ const statSchema = joi.object({
 export const createActivity = joi
   .object()
   .keys({
-    category: joi.string().valid(...allowedCategories).required(),
+    category: joi
+      .string()
+      .valid(...allowedCategories)
+      .required(),
     label: joi.string().min(2).max(100).trim().required(),
     title: joi.string().min(2).max(200).trim().required(),
     description: joi.string().trim().required(),
-    stats: joi.array().items(statSchema).max(10),
-    highlights: joi.array().items(joi.string().trim()).max(20),
-    icon: joi.string().valid(...allowedIcons),
-    file: generalFields.file,
+    stats: joi.array().items(statSchema).max(10).optional(),
+    highlights: joi.array().items(joi.string().trim()).max(20).optional(),
+    icon: joi
+      .string()
+      .valid(...allowedIcons)
+      .optional(),
+    file: joi.array().items(generalFields.file).optional(),
   })
   .required();
-
 export const updateActivity = joi
   .object()
   .keys({
@@ -32,7 +37,7 @@ export const updateActivity = joi
     stats: joi.array().items(statSchema).max(10),
     highlights: joi.array().items(joi.string().trim()).max(20),
     icon: joi.string().valid(...allowedIcons),
-    file: generalFields.file,
+    file: joi.array().items(generalFields.file).max(5).required(),
   })
   .required();
 

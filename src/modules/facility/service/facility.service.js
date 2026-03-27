@@ -33,7 +33,6 @@ export const createFacility = asyncHandler(async (req, res, next) => {
   });
 });
 
-
 // Get All Facilities
 export const getAllFacilities = asyncHandler(async (req, res, next) => {
   const facilities = await dbService.findAll({
@@ -47,7 +46,6 @@ export const getAllFacilities = asyncHandler(async (req, res, next) => {
     message: "Facilities retrieved successfully",
   });
 });
-
 
 // Get Facility By ID
 export const getFacilityById = asyncHandler(async (req, res, next) => {
@@ -68,7 +66,6 @@ export const getFacilityById = asyncHandler(async (req, res, next) => {
     message: "Facility retrieved successfully",
   });
 });
-
 
 // Update Facility
 export const updateFacilityById = asyncHandler(async (req, res, next) => {
@@ -102,7 +99,6 @@ export const updateFacilityById = asyncHandler(async (req, res, next) => {
     message: "Facility updated successfully",
   });
 });
-
 
 //  Delete Facility
 export const deleteFacilityById = asyncHandler(async (req, res, next) => {
