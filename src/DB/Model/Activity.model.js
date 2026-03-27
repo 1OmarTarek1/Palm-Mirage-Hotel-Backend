@@ -32,10 +32,7 @@ const activitySchema = new Schema(
       required: true,
       trim: true,
     },
-    image: {
-      secure_url: { type: String },
-      public_id: { type: String },
-    },
+    attacthments: [{ secure_url: String, public_id: String }],
     stats: [
       {
         value: { type: String, required: true },

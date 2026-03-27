@@ -30,7 +30,11 @@ export const generalFields = {
   id: joi.string().custom(checkObjectId),
   fileobject,
   file: joi.object(fileobject),
+  
 };
+
+
+
 
 export const validation = (schema) => {
   return (req, res, next) => {
