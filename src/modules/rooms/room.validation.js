@@ -1,4 +1,4 @@
-import Joi from "joi";
+// import Joi from "joi";
 
 const timePattern = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const roomTypes = ["single", "double", "twin", "deluxe", "family"];
