@@ -8,8 +8,9 @@ const RoomSchema = new Schema(
       trim: true,
     },
 
-    slug: {
-      type: String,
+    roomNumber: {
+      type: Number,
+      required: true,
       unique: true,
     },
 
@@ -25,13 +26,6 @@ const RoomSchema = new Schema(
       required: true,
     },
 
-    discount: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 100,
-    },
-
     finalPrice: {
       type: Number,
     },
@@ -40,6 +34,18 @@ const RoomSchema = new Schema(
       type: Number,
       default: 1,
       min: 1,
+    },
+
+    discount: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 75,
+    },
+
+    description: {
+      type: String,
+      default: "",
     },
 
     facilities: [
@@ -51,13 +57,10 @@ const RoomSchema = new Schema(
 
     roomImages: [
       {
-        type: String,
+        secure_url: { type: String },
+        public_id: { type: String },
       },
     ],
-
-    description: {
-      type: String,
-    },
 
     hasOffer: {
       type: Boolean,
@@ -101,6 +104,7 @@ const RoomSchema = new Schema(
       type: String,
       default: "12:00",
       match: /^([01]\d|2[0-3]):([0-5]\d)$/,
+      // required: true,
     },
 
     cancellationPolicy: {
@@ -110,13 +114,8 @@ const RoomSchema = new Schema(
   { timestamps: true },
 );
 
-// Generate slug + calculate final price
+// calculate final price
 RoomSchema.pre("save", function () {
-  // generate slug
-  if (this.isModified("roomName")) {
-    this.slug = this.roomName.toLowerCase().trim().replace(/\s+/g, "-");
-  }
-
   // calculate final price
   this.finalPrice = this.price - (this.price * this.discount) / 100;
 });
