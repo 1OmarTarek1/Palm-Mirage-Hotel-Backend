@@ -5,7 +5,7 @@ import path from "node:path";
 export const fileValidationTypes = {
   image: ["image/jpg", "image/jpeg", "image/png", "image/gif"],
 };
-
+// uploadDiskFile
 export const uploadDiskFile = (customPath = "general", fileValidation = []) => {
   const basePath = `uploads/${customPath}`;
   const fullPath = path.resolve(`./src/${basePath}`);
