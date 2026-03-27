@@ -39,7 +39,7 @@ const bootstrap = (app, express) => {
   app.use('/auth', authController);
   app.use('/user', userController);
   app.use('/activity', activityController);
-  app.use('/room', roomController);
+  app.use('/rooms', roomController);
   app.use("/facilities", facilityController);
   app.use('/payment', paymentController);
   app.use('/booking', bookingController);
