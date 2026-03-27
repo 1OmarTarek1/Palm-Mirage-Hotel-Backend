@@ -7,6 +7,16 @@ const statSchema = joi.object({
   label: joi.string().required(),
 });
 
+const statFieldSchema = joi.alternatives().try(
+  joi.array().items(statSchema).max(10),
+  joi.string()
+);
+
+const highlightsFieldSchema = joi.alternatives().try(
+  joi.array().items(joi.string().trim()).max(20),
+  joi.string()
+);
+
 export const createActivity = joi
   .object()
   .keys({
@@ -17,8 +27,8 @@ export const createActivity = joi
     label: joi.string().min(2).max(100).trim().required(),
     title: joi.string().min(2).max(200).trim().required(),
     description: joi.string().trim().required(),
-    stats: joi.array().items(statSchema).max(10).optional(),
-    highlights: joi.array().items(joi.string().trim()).max(20).optional(),
+    stats: statFieldSchema.optional(),
+    highlights: highlightsFieldSchema.optional(),
     icon: joi
       .string()
       .valid(...allowedIcons)
@@ -34,10 +44,10 @@ export const updateActivity = joi
     label: joi.string().min(2).max(100).trim(),
     title: joi.string().min(2).max(200).trim(),
     description: joi.string().trim(),
-    stats: joi.array().items(statSchema).max(10),
-    highlights: joi.array().items(joi.string().trim()).max(20),
+    stats: statFieldSchema,
+    highlights: highlightsFieldSchema,
     icon: joi.string().valid(...allowedIcons),
-    file: joi.array().items(generalFields.file).max(5).required(),
+    file: generalFields.file.optional(),
   })
   .required();
 

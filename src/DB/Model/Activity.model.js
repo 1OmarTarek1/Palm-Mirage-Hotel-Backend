@@ -32,6 +32,10 @@ export const activitySchema = new Schema(
       required: true,
       trim: true,
     },
+    image: {
+      secure_url: String,
+      public_id: String,
+    },
     attacthments: [{ secure_url: String, public_id: String }],
     stats: [
       {

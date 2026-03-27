@@ -5,8 +5,31 @@ import { activityModel } from "../../../DB/Model/Activity.model.js";
 import cloudinary from "../../../utils/multer/cloudinary.js";
 import cloud from "../../../utils/multer/cloudinary.js";
 
+const parseArrayField = (value) => {
+  if (!value) return undefined;
+  if (Array.isArray(value)) return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+};
+
 export const createActivity = asyncHandler(async (req, res, next) => {
-  const { category, label, title, description, stats, highlights, icon } = req.body;
+  const { title, stats, highlights } = req.body;
+  const parsedStats = parseArrayField(stats);
+  const parsedHighlights = parseArrayField(highlights);
+
+  const titleExists = await dbService.findOne({
+    model: activityModel,
+    filter: { title },
+  });
+  if (titleExists) {
+    return next(new Error("Activity with this title already exists", { cause: 409 }));
+  }
+
+  let uploadedImage;
 
   if (req.files) {
     const attacthments = [];
@@ -15,59 +38,22 @@ export const createActivity = asyncHandler(async (req, res, next) => {
         folder: `${process.env.APP_NAME}/activities`,
       });
       attacthments.push({ secure_url, public_id });
- 
     }
     req.body.attacthments = attacthments;
+    uploadedImage = attacthments[0];
   }
 
   const activity = await dbService.create({
     model: activityModel,
     data: {
       ...req.body,
-      userId: req.user._id,
+      stats: parsedStats || [],
+      highlights: parsedHighlights || [],
+      image: uploadedImage,
+      createdBy: req.user._id,
     },
   });
   return successResponse({ res, status: 201, data: { activity }, message: "Activity created successfully" });
-
-  // const titleExists = await dbService.findOne({
-  //   model: activityModel,
-  //   filter: { title },
-  // });
-  // if (titleExists) {
-  //   return next(new Error("Activity with this title already exists", { cause: 409 }));
-  // }
-
-  // let image = {};
-  // if (req.file) {
-  //   const uploadResult = await new Promise((resolve, reject) => {
-  //     const stream = cloudinary.uploader.upload_stream(
-  //       { folder: `${process.env.APP_NAME}/activities` },
-  //       (error, result) => {
-  //         if (error) return reject(error);
-  //         resolve(result);
-  //       }
-  //     );
-  //     stream.end(req.file.buffer);
-  //   });
-  //   image = { secure_url: uploadResult.secure_url, public_id: uploadResult.public_id };
-  // }
-
-  // const activity = await dbService.create({
-  //   model: activityModel,
-  //   data: {
-  //     category,
-  //     label,
-  //     title,
-  //     description,
-  //     image,
-  //     stats: stats || [],
-  //     highlights: highlights || [],
-  //     icon,
-  //     createdBy: req.user._id,
-  //   },
-  // });
-
-  // return successResponse({ res, status: 201, data: { activity } });
 });
 
 export const getAllActivities = asyncHandler(async (req, res, next) => {
@@ -131,6 +117,8 @@ export const getActivityById = asyncHandler(async (req, res, next) => {
 export const updateActivity = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const { category, label, title, description, stats, highlights, icon } = req.body;
+  const parsedStats = parseArrayField(stats);
+  const parsedHighlights = parseArrayField(highlights);
 
   const existing = await dbService.findOne({
     model: activityModel,
@@ -173,8 +161,8 @@ export const updateActivity = asyncHandler(async (req, res, next) => {
   if (label) updateData.label = label;
   if (title) updateData.title = title;
   if (description) updateData.description = description;
-  if (stats) updateData.stats = stats;
-  if (highlights) updateData.highlights = highlights;
+  if (parsedStats) updateData.stats = parsedStats;
+  if (parsedHighlights) updateData.highlights = parsedHighlights;
   if (icon) updateData.icon = icon;
   if (image) updateData.image = image;
 
