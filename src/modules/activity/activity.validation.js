@@ -1,6 +1,10 @@
 import joi from "joi";
 import { generalFields } from "../../middleware/validation.middleware.js";
-import { allowedIcons, allowedCategories } from "../../DB/Model/Activity.model.js";
+import {
+  allowedIcons,
+  allowedCategories,
+  activityPricingTypes,
+} from "../../DB/Model/Activity.model.js";
 
 const statSchema = joi.object({
   value: joi.string().required(),
@@ -27,6 +31,12 @@ export const createActivity = joi
     label: joi.string().min(2).max(100).trim().required(),
     title: joi.string().min(2).max(200).trim().required(),
     description: joi.string().trim().required(),
+    location: joi.string().min(2).max(150).trim().allow(""),
+    basePrice: joi.number().min(0).required(),
+    pricingType: joi.string().valid(...activityPricingTypes).required(),
+    durationMinutes: joi.number().integer().min(15).required(),
+    defaultCapacity: joi.number().integer().min(1).required(),
+    isActive: joi.boolean().optional(),
     stats: statFieldSchema.optional(),
     highlights: highlightsFieldSchema.optional(),
     icon: joi
@@ -44,6 +54,12 @@ export const updateActivity = joi
     label: joi.string().min(2).max(100).trim(),
     title: joi.string().min(2).max(200).trim(),
     description: joi.string().trim(),
+    location: joi.string().min(2).max(150).trim().allow(""),
+    basePrice: joi.number().min(0),
+    pricingType: joi.string().valid(...activityPricingTypes),
+    durationMinutes: joi.number().integer().min(15),
+    defaultCapacity: joi.number().integer().min(1),
+    isActive: joi.boolean(),
     stats: statFieldSchema,
     highlights: highlightsFieldSchema,
     icon: joi.string().valid(...allowedIcons),
