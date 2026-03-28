@@ -103,7 +103,7 @@ export const RoomSchema = new Schema(
     checkOutTime: {
       type: String,
       default: "12:00",
-      match: /^([01]\d|2[0-3]):([0-5]\d)$/,
+      // match: /^([01]\d|2[0-3]):([0-5]\d)$/,
       // required: true,
     },
 

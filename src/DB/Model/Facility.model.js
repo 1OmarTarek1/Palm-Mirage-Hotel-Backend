@@ -12,10 +12,7 @@ export const facilitySchema = new Schema(
       type: String,
       unique: true,
     },
-
-    category: {
-      type: String,
-    },
+    
   },
   { timestamps: true }
 );
