@@ -18,8 +18,8 @@ export const findOne = async ({ model, filter = {}, select = "", populate = [] }
 }
 
 // Update
-export const findOneAndUpdate = async ({ model, filter = {}, data = {}, options = {}, select = "", populate = [] } = {}) => {
-    const decument = await model.findOneAndUpdate(filter, data, options).select(select).populate(populate);
+export const findOneAndUpdate = async ({ model, filter = {}, data = {}, options = {}, select = "", populate = [] , sort= "" } = {}) => {
+    const decument = await model.findOneAndUpdate(filter, data, options).select(select).populate(populate).sort(sort);;
     return decument
 }
 export const findByIdAndUpdate = async ({ model, id = {}, data = {}, options = {}, select = "", populate = [] } = {}) => {
