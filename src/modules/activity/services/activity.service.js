@@ -16,10 +16,30 @@ const parseArrayField = (value) => {
   }
 };
 
+const parseBooleanField = (value) => {
+  if (value === undefined) return undefined;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value === "true") return true;
+    if (value === "false") return false;
+  }
+  return undefined;
+};
+
+const parseNumberField = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+};
+
 export const createActivity = asyncHandler(async (req, res, next) => {
   const { title, stats, highlights } = req.body;
   const parsedStats = parseArrayField(stats);
   const parsedHighlights = parseArrayField(highlights);
+  const basePrice = parseNumberField(req.body.basePrice);
+  const durationMinutes = parseNumberField(req.body.durationMinutes);
+  const defaultCapacity = parseNumberField(req.body.defaultCapacity);
+  const isActive = parseBooleanField(req.body.isActive);
 
   const titleExists = await dbService.findOne({
     model: activityModel,
@@ -49,6 +69,10 @@ export const createActivity = asyncHandler(async (req, res, next) => {
       ...req.body,
       stats: parsedStats || [],
       highlights: parsedHighlights || [],
+      basePrice,
+      durationMinutes,
+      defaultCapacity,
+      isActive: isActive ?? true,
       image: uploadedImage,
       createdBy: req.user._id,
     },
@@ -116,9 +140,13 @@ export const getActivityById = asyncHandler(async (req, res, next) => {
 
 export const updateActivity = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { category, label, title, description, stats, highlights, icon } = req.body;
+  const { category, label, title, description, stats, highlights, icon, location, pricingType } = req.body;
   const parsedStats = parseArrayField(stats);
   const parsedHighlights = parseArrayField(highlights);
+  const basePrice = parseNumberField(req.body.basePrice);
+  const durationMinutes = parseNumberField(req.body.durationMinutes);
+  const defaultCapacity = parseNumberField(req.body.defaultCapacity);
+  const isActive = parseBooleanField(req.body.isActive);
 
   const existing = await dbService.findOne({
     model: activityModel,
@@ -161,6 +189,12 @@ export const updateActivity = asyncHandler(async (req, res, next) => {
   if (label) updateData.label = label;
   if (title) updateData.title = title;
   if (description) updateData.description = description;
+  if (location !== undefined) updateData.location = location;
+  if (basePrice !== undefined) updateData.basePrice = basePrice;
+  if (pricingType) updateData.pricingType = pricingType;
+  if (durationMinutes !== undefined) updateData.durationMinutes = durationMinutes;
+  if (defaultCapacity !== undefined) updateData.defaultCapacity = defaultCapacity;
+  if (isActive !== undefined) updateData.isActive = isActive;
   if (parsedStats) updateData.stats = parsedStats;
   if (parsedHighlights) updateData.highlights = parsedHighlights;
   if (icon) updateData.icon = icon;

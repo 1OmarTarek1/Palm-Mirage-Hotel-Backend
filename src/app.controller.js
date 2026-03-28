@@ -3,6 +3,8 @@ import cors from 'cors';
 import authController from './modules/auth/auth.controller.js';
 import userController from './modules/user/user.controller.js';
 import activityController from './modules/activity/activity.controller.js';
+import activityScheduleController from './modules/activitySchedule/activitySchedule.controller.js';
+import activityBookingController from './modules/activityBooking/activityBooking.controller.js';
 import roomController from './modules/rooms/room.controller.js';
 import facilityController from './modules/facility/facility.controller.js';
 import paymentController from './modules/payment/payment.controller.js';
@@ -52,6 +54,8 @@ const bootstrap = (app, express) => {
   app.use('/auth', authController);
   app.use('/user', userController);
   app.use('/activity', activityController);
+  app.use('/activity-schedules', activityScheduleController);
+  app.use('/activity-bookings', activityBookingController);
   app.use('/rooms', roomController);
   app.use("/facilities", facilityController);
   app.use('/payment', paymentController);
