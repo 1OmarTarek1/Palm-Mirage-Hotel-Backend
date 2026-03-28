@@ -1,24 +1,11 @@
-import { asyncHandler } from '../../../utils/response/error.response.js';
-import * as dbService from '../../../DB/db.service.js';
-import {
-  otpTypes,
-  providerTypes,
-  roleTypes,
-  userModel,
-} from '../../../DB/Model/User.model.js';
-import {
-  compareHash,
-  generateEncryptHash,
-  generateHash,
-} from '../../../utils/security/hash.security.js';
-import { successResponse } from '../../../utils/response/success.response.js';
-import { emailEvent } from '../../../utils/event/email.event.js';
-import {
-  decodeToken,
-  generateToken,
-  tokenTypes,
-} from '../../../utils/security/token.security.js';
-import { OAuth2Client } from 'google-auth-library';
+import { asyncHandler } from "../../../utils/response/error.response.js";
+import * as dbService from "../../../DB/db.service.js";
+import { otpTypes, providerTypes, roleTypes, userModel } from "../../../DB/Model/User.model.js";
+import { compareHash, generateEncryptHash, generateHash } from "../../../utils/security/hash.security.js";
+import { successResponse } from "../../../utils/response/success.response.js";
+import { emailEvent } from "../../../utils/event/email.event.js";
+import { decodeToken, generateToken, tokenTypes } from "../../../utils/security/token.security.js";
+import { OAuth2Client } from "google-auth-library";
 
 export const login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
@@ -27,13 +14,13 @@ export const login = asyncHandler(async (req, res, next) => {
   const user = await dbService.findOne({ model: userModel, filter: { email } });
 
   if (!user) {
-    return next(new Error('user not found'), { cause: 404 });
+    return next(new Error("user not found"), { cause: 404 });
   }
   if (!user.isConfirmed) {
-    return next(new Error('Please Verify your Account'), { cause: 400 });
+    return next(new Error("Please Verify your Account"), { cause: 400 });
   }
   if (user.bannedAt != undefined) {
-    return next(new Error('your account is  banned'), { cause: 400 });
+    return next(new Error("your account is  banned"), { cause: 400 });
   }
   if (user.deletedAt != undefined) {
     await dbService.findOneAndUpdate({
@@ -46,25 +33,19 @@ export const login = asyncHandler(async (req, res, next) => {
     });
   }
   if (user.provider != providerTypes.system) {
-    return next(new Error('Not Provided'), { cause: 400 });
+    return next(new Error("Not Provided"), { cause: 400 });
   }
   if (!compareHash({ plainText: password, hashValue: user.password })) {
-    return next(new Error('Not found'), { cause: 404 });
+    return next(new Error("Not found"), { cause: 404 });
   }
 
   const accessToken = generateToken({
     payload: { id: user._id },
-    signature:
-      user.role === roleTypes.admin
-        ? process.env.SYSTEM_ACCESS_TOKEN
-        : process.env.USER_ACCESS_TOKEN,
+    signature: user.role === roleTypes.admin ? process.env.SYSTEM_ACCESS_TOKEN : process.env.USER_ACCESS_TOKEN,
   });
   const refreshToken = generateToken({
     payload: { id: user._id },
-    signature:
-      user.role === roleTypes.admin
-        ? process.env.SYSTEM_REFRESH_TOKEN
-        : process.env.USER_REFRESH_TOKEN,
+    signature: user.role === roleTypes.admin ? process.env.SYSTEM_REFRESH_TOKEN : process.env.USER_REFRESH_TOKEN,
     expiresIn: 31536000,
   });
 
@@ -72,16 +53,16 @@ export const login = asyncHandler(async (req, res, next) => {
     res,
     status: 200,
     data: {
+      role: user.role,
       accessToken,
       refreshToken,
     },
   });
 });
 
-
 // omar - login with google
 export const loginWithGmail = asyncHandler(async (req, res, next) => {
-  const { idToken, mode = 'login' } = req.body;
+  const { idToken, mode = "login" } = req.body;
   const client = new OAuth2Client(process.env.CLIENT_ID);
 
   const ticket = await client.verifyIdToken({
@@ -91,7 +72,7 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
   const payload = ticket.getPayload();
 
   if (!payload.email_verified) {
-    return next(new Error('Google email is not verified'), { cause: 400 });
+    return next(new Error("Google email is not verified"), { cause: 400 });
   }
 
   let user = await dbService.findOne({
@@ -101,16 +82,15 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
 
   if (user) {
     if (user.provider !== providerTypes.google) {
-      return next(
-        new Error('This email is already registered with email & password. Please login normally.'),
-        { cause: 409 }
-      );
+      return next(new Error("This email is already registered with email & password. Please login normally."), {
+        cause: 409,
+      });
     }
-    if (mode === 'register') {
-      return next(new Error('This Google account is already registered. Please login instead.'), { cause: 409 });
+    if (mode === "register") {
+      return next(new Error("This Google account is already registered. Please login instead."), { cause: 409 });
     }
     if (user.bannedAt) {
-      return next(new Error('Your account is banned'), { cause: 403 });
+      return next(new Error("Your account is banned"), { cause: 403 });
     }
     if (user.deletedAt) {
       await dbService.updateOne({
@@ -120,8 +100,8 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
       });
     }
   } else {
-    if (mode === 'login') {
-      return next(new Error('No account found with this Google email. Please register first.'), { cause: 404 });
+    if (mode === "login") {
+      return next(new Error("No account found with this Google email. Please register first."), { cause: 404 });
     }
 
     user = await dbService.create({
@@ -132,24 +112,18 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
         provider: providerTypes.google,
         isConfirmed: true,
         image: payload.picture,
-        country: 'N/A',
+        country: "N/A",
       },
     });
   }
 
   const accessToken = generateToken({
     payload: { id: user._id },
-    signature:
-      user.role === roleTypes.admin
-        ? process.env.SYSTEM_ACCESS_TOKEN
-        : process.env.USER_ACCESS_TOKEN,
+    signature: user.role === roleTypes.admin ? process.env.SYSTEM_ACCESS_TOKEN : process.env.USER_ACCESS_TOKEN,
   });
   const refreshToken = generateToken({
     payload: { id: user._id },
-    signature:
-      user.role === roleTypes.admin
-        ? process.env.SYSTEM_REFRESH_TOKEN
-        : process.env.USER_REFRESH_TOKEN,
+    signature: user.role === roleTypes.admin ? process.env.SYSTEM_REFRESH_TOKEN : process.env.USER_REFRESH_TOKEN,
     expiresIn: 31536000,
   });
 
@@ -159,7 +133,7 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
     data: {
       accessToken,
       refreshToken,
-      isNewUser: !user.createdAt || (Date.now() - new Date(user.createdAt).getTime()) < 5000,
+      isNewUser: !user.createdAt || Date.now() - new Date(user.createdAt).getTime() < 5000,
     },
   });
 });
@@ -184,19 +158,13 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
 
   const accessToken = generateToken({
     payload: { id: user._id },
-    signature:
-      user.role === roleTypes.admin
-        ? process.env.SYSTEM_ACCESS_TOKEN
-        : process.env.USER_ACCESS_TOKEN,
+    signature: user.role === roleTypes.admin ? process.env.SYSTEM_ACCESS_TOKEN : process.env.USER_ACCESS_TOKEN,
   });
   ///////////////////////////////
   const refreshToken = generateToken({
     payload: { id: user._id },
-    signature:
-      user.role === roleTypes.admin
-        ? process.env.SYSTEM_REFRESH_TOKEN
-        : process.env.USER_REFRESH_TOKEN,
-    expiresIn: '7d',
+    signature: user.role === roleTypes.admin ? process.env.SYSTEM_REFRESH_TOKEN : process.env.USER_REFRESH_TOKEN,
+    expiresIn: "7d",
   });
 
   return successResponse({
@@ -214,20 +182,20 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
 export const forgotPassword = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
 
-const user = await dbService.findOne({
-  model: userModel,
-  filter: { email, deletedAt: null },
-});
+  const user = await dbService.findOne({
+    model: userModel,
+    filter: { email, deletedAt: null },
+  });
   if (!user) {
-    return next(new Error(' account not found'), { cause: 404 });
+    return next(new Error(" account not found"), { cause: 404 });
   }
 
   if (!user.isConfirmed) {
-    return next(new Error('Verify your account first'), {
+    return next(new Error("Verify your account first"), {
       cause: 400,
     });
   }
-  emailEvent.emit('sendForgetPassword', { email });
+  emailEvent.emit("sendForgetPassword", { email });
 
   return successResponse({ res });
 });
@@ -241,23 +209,18 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
     filter: { email, deletedAt: null },
   });
   if (!user) {
-    return next(new Error('In-valid account'), { cause: 404 });
+    return next(new Error("In-valid account"), { cause: 404 });
   }
 
   //chech if otp expires
-  const validOtp = user.OTP.find(
-    (otp) => otp.expiresIn > new Date() && otp.type === otpTypes.forgetPassword
-  );
+  const validOtp = user.OTP.find((otp) => otp.expiresIn > new Date() && otp.type === otpTypes.forgetPassword);
   if (!validOtp) {
-    emailEvent.emit('sendForgetPassword', { email });
-    return next(
-      new Error('expires OTP PLease input your new OTP from your email'),
-      { cause: 404 }
-    );
+    emailEvent.emit("sendForgetPassword", { email });
+    return next(new Error("expires OTP PLease input your new OTP from your email"), { cause: 404 });
   }
   //check otp type
   if (!compareHash({ plainText: code, hashValue: validOtp.code })) {
-    return next(new Error('Invalid code'), { cause: 400 });
+    return next(new Error("Invalid code"), { cause: 400 });
   }
   const hashPassword = generateHash({ plainText: password });
 
