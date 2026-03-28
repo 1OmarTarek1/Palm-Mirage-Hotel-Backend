@@ -1,70 +1,31 @@
 import * as dbService from "../../../DB/db.service.js";
 import { RoomModel } from "../../../DB/Model/Room.model.js";
-import cloudinary from "../../../utils/multer/cloudinary.js";
+// import cloudinary from "../../../utils/multer/cloudinary.js";
 import { paginate } from "../../../utils/pagination/pagination.js";
 import { asyncHandler } from "../../../utils/response/error.response.js";
 import { successResponse } from "../../../utils/response/success.response.js";
+import cloudinary from "../../../utils/multer/cloudinary.js";
+import cloud from "../../../utils/multer/cloudinary.js";
 
 // Create Room
 export const createRoom = asyncHandler(async (req, res, next) => {
-  const {
-    roomName,
-    roomNumber,
-    roomType,
-    price,
-    finalPrice,
-    capacity,
-    discount,
-    description,
-    facilities,
-    floor,
-    rating,
-    checkInTime,
-    checkOutTime,
-    cancellationPolicy,
-  } = req.body;
 
-  let roomImagesData = [];
-
-  if (req.files?.length) {
-    for (const file of req.files) {
-      const uploadResult = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: `${process.env.APP_NAME}/room` },
-          (error, result) => {
-            if (error) return reject(error);
-            resolve(result);
-          },
-        );
-
-        stream.end(file.buffer);
-      });
-
-      roomImagesData.push({
-        secure_url: uploadResult.secure_url,
-        public_id: uploadResult.public_id,
-      });
+    if (req.files) {
+      const roomImagesData = [];
+      for (const file of req.files) {
+        const { secure_url, public_id } = await cloud.uploader.upload(file.path, {
+          folder: `${process.env.APP_NAME}/room`,
+        });
+        roomImagesData.push({ secure_url, public_id });
+   
+      }
+      req.body.roomImages = roomImagesData;
     }
-  }
 
   const newRoom = await dbService.create({
     model: RoomModel,
     data: {
-      roomName,
-      roomNumber,
-      roomType,
-      price,
-      finalPrice,
-      capacity,
-      discount,
-      description,
-      facilities,
-      floor,
-      rating,
-      checkInTime,
-      checkOutTime,
-      cancellationPolicy,
-      roomImages: roomImagesData,
+      ...req.body
     },
   });
 
@@ -87,28 +48,35 @@ export const getAllRooms = asyncHandler(async (req, res, next) => {
     page,
     limit,
   } = req.query;
-
+ 
   let filter = { isAvailable: true };
-
-  if (roomType) filter.roomType = roomType;
-  if (capacity) filter.capacity = { $gte: Number(capacity) };
-  if (hasOffer) filter.hasOffer = hasOffer === "true";
-  if (minRating) filter.rating = { $gte: Number(minRating) };
-
+ 
+  if (roomType)   filter.roomType = roomType;
+  if (capacity)   filter.capacity = { $gte: Number(capacity) };
+  if (hasOffer)   filter.hasOffer = hasOffer === "true";
+  if (minRating)  filter.rating   = { $gte: Number(minRating) };
+ 
   if (minPrice || maxPrice) {
     filter.price = {};
     if (minPrice) filter.price.$gte = Number(minPrice);
     if (maxPrice) filter.price.$lte = Number(maxPrice);
   }
-
+ 
   const result = await paginate({
-    page: Number(page),
-    size: Number(limit),
+    page:  Number(page)  || 1,
+    size:  Number(limit) || 10,
     model: RoomModel,
     filter,
-    populate: ["facilities"],
+    populate: [
+      {
+        path:   "facilities",      
+        model:  "Facility",        
+        select: "name icon -_id",  
+      },
+    ],
+    // ─────────────────────────────────────────────────────────────────────
   });
-
+ 
   return successResponse({
     res,
     data: result,
