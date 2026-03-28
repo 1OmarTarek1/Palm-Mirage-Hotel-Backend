@@ -10,13 +10,13 @@ export const paginate = async ({
   sort = "",
 }) => {
   page = page < 1 ? Number(process.env.PAGE) || 1 : Number(page);
-  size = size < 1 ? Number(process.env.SIZE) || 10 : Number(size);
+  size = size < 1 ? Number(process.env.SIZE) || 8 : Number(size);
 
   const skip = (page - 1) * size;
 
   const count = await model.countDocuments(filter);
 
-  const data = await dbService.find({
+  const data = await dbService.findAll({
     model,
     filter,
     populate,
