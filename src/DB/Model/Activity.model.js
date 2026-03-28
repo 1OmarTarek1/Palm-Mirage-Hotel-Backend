@@ -4,7 +4,7 @@ export const allowedIcons = ["Ship", "Landmark", "Mountain", "Palette", "CloudSu
 
 export const allowedCategories = ["nile", "heritage", "desert", "cultural", "balloon", "culinary"];
 
-const activitySchema = new Schema(
+export const activitySchema = new Schema(
   {
     category: {
       type: String,

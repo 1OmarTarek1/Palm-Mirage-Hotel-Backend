@@ -1,6 +1,6 @@
 import mongoose, { Schema, model } from "mongoose";
 
-const RoomSchema = new Schema(
+export const RoomSchema = new Schema(
   {
     roomName: {
       type: String,
