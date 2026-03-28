@@ -9,7 +9,7 @@ import paymentController from './modules/payment/payment.controller.js';
 import { globalErrorHandling } from './utils/response/error.response.js';
 import helmet from 'helmet';
 // import rateLimit from "express-rate-limit";
-import bookingController from './modules/bookingTable/booking.controller.js';
+import bookingController from './modules/bookingTable/bookingTable.controller.js';
 import tableController from './modules/restaurantTable/restaurantTable.controller.js';
 
 // const limiter = rateLimit({

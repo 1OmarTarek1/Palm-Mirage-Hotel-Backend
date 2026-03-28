@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import Booking from '../../../DB/Model/bookingTable.model.js';
-import Table from '../../../DB/Model/table.model.js';
 import { asyncHandler } from '../../../utils/response/error.response.js';
 import * as dbService from '../../../DB/db.service.js';
 
