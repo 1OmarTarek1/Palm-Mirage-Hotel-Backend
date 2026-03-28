@@ -1,6 +1,6 @@
-import mongoose from 'mongoose';
+import mongoose, { model, Schema } from "mongoose";
 
-const tableSchema = new mongoose.Schema(
+export const tableSchema = new Schema(
   {
     number: {
       type: Number,
@@ -17,4 +17,4 @@ const tableSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export default mongoose.model('Table', tableSchema);
+export const TableModel = mongoose.models.Table || model("Table", tableSchema);
