@@ -74,7 +74,6 @@ export const getAllRooms = asyncHandler(async (req, res, next) => {
         select: "name icon -_id",  
       },
     ],
-    // ─────────────────────────────────────────────────────────────────────
   });
  
   return successResponse({
@@ -169,29 +168,52 @@ export const updateRoomById = asyncHandler(async (req, res, next) => {
   }
 
   const updates = { ...req.body };
-
   delete updates.rating;
   delete updates.reviewsCount;
   delete updates.viewsCount;
 
-  if (req.body.deletedImages?.length) {
-    await Promise.all(
-      req.body.deletedImages.map((public_id) =>
-        cloudinary.uploader.destroy(public_id)
-      )
+  let keptImages = Array.isArray(room.roomImages) ? [...room.roomImages] : [];
+
+  const deletedImages = Array.isArray(req.body.deletedImages)
+    ? req.body.deletedImages
+    : [];
+
+  if (deletedImages.length) {
+    const validToDelete = deletedImages.filter((id) =>
+      keptImages.some((img) => img.public_id === id),
     );
 
-    room.roomImages = room.roomImages.filter(
-      (img) => !req.body.deletedImages.includes(img.public_id)
+    await Promise.all(
+      validToDelete.map((public_id) => cloudinary.uploader.destroy(public_id)),
     );
+
+    keptImages = keptImages.filter(
+      (img) => !deletedImages.includes(img.public_id),
+    );
+  }
+
+  // Optional pair swap semantics (local UI can send ids to replace)
+  const replaceImages = Array.isArray(req.body.replaceImages)
+    ? req.body.replaceImages
+    : [];
+
+  if (replaceImages.length) {
+    for (const item of replaceImages) {
+      if (!item.oldPublicId) continue;
+      const existed = keptImages.find((img) => img.public_id === item.oldPublicId);
+      if (existed) {
+        await cloudinary.uploader.destroy(item.oldPublicId);
+        keptImages = keptImages.filter((img) => img.public_id !== item.oldPublicId);
+      }
+    }
   }
 
   let newImages = [];
 
   if (req.files?.length) {
     newImages = await Promise.all(
-      req.files.map((file) => {
-        return new Promise((resolve, reject) => {
+      req.files.map((file) =>
+        new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
             { folder: `${process.env.APP_NAME}/room` },
             (error, result) => {
@@ -200,16 +222,16 @@ export const updateRoomById = asyncHandler(async (req, res, next) => {
                 secure_url: result.secure_url,
                 public_id: result.public_id,
               });
-            }
+            },
           );
 
           stream.end(file.buffer);
-        });
-      })
+        }),
+      ),
     );
   }
 
-  updates.roomImages = [...room.roomImages, ...newImages];
+  updates.roomImages = [...keptImages, ...newImages];
 
   const updatedRoom = await dbService.findByIdAndUpdate({
     model: RoomModel,
