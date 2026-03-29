@@ -7,6 +7,7 @@ import activityScheduleController from './modules/activitySchedule/activitySched
 import activityBookingController from './modules/activityBooking/activityBooking.controller.js';
 import roomController from './modules/rooms/room.controller.js';
 import facilityController from './modules/facility/facility.controller.js';
+import bookingRoomController from './modules/booking/booking.controller.js';
 import paymentController from './modules/payment/payment.controller.js';
 import { globalErrorHandling } from './utils/response/error.response.js';
 import helmet from 'helmet';
@@ -69,6 +70,7 @@ const bootstrap = (app, express) => {
   app.use('/activity-bookings', activityBookingController);
   app.use('/rooms', roomController);
   app.use("/facilities", facilityController);
+  app.use("/reservations", bookingRoomController);
   app.use('/payment', paymentController);
   app.use('/booking', bookingController);
   app.use('/tables', tableController);
