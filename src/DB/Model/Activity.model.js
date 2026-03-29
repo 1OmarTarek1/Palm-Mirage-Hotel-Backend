@@ -3,6 +3,7 @@ import mongoose, { Schema, model } from "mongoose";
 export const allowedIcons = ["Ship", "Landmark", "Mountain", "Palette", "CloudSun", "ChefHat"];
 
 export const allowedCategories = ["nile", "heritage", "desert", "cultural", "balloon", "culinary"];
+export const activityPricingTypes = ["per_person", "per_group"];
 
 export const activitySchema = new Schema(
   {
@@ -32,6 +33,10 @@ export const activitySchema = new Schema(
       required: true,
       trim: true,
     },
+    image: {
+      secure_url: String,
+      public_id: String,
+    },
     attacthments: [{ secure_url: String, public_id: String }],
     stats: [
       {
@@ -43,6 +48,39 @@ export const activitySchema = new Schema(
     icon: {
       type: String,
       enum: allowedIcons,
+    },
+    location: {
+      type: String,
+      trim: true,
+      maxlength: 150,
+      default: "",
+    },
+    basePrice: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+    pricingType: {
+      type: String,
+      enum: activityPricingTypes,
+      default: "per_person",
+    },
+    durationMinutes: {
+      type: Number,
+      required: true,
+      min: 15,
+      default: 60,
+    },
+    defaultCapacity: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

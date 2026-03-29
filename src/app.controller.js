@@ -3,6 +3,8 @@ import cors from 'cors';
 import authController from './modules/auth/auth.controller.js';
 import userController from './modules/user/user.controller.js';
 import activityController from './modules/activity/activity.controller.js';
+import activityScheduleController from './modules/activitySchedule/activitySchedule.controller.js';
+import activityBookingController from './modules/activityBooking/activityBooking.controller.js';
 import roomController from './modules/rooms/room.controller.js';
 import facilityController from './modules/facility/facility.controller.js';
 import paymentController from './modules/payment/payment.controller.js';
@@ -19,13 +21,26 @@ import menuController from './modules/menu/menu.controller.js'
 // });
 
 const bootstrap = (app, express) => {
-  // Allow frontend origins (from .env.dev ORAGIN) to call our API and send cookies
-  const whitelist = process.env.ORAGIN?.split(',').map((o) => o.trim()) || [];
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5173',
+  ];
+  const envOrigins = (process.env.ORAGIN || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const whitelist = [...new Set([...defaultOrigins, ...envOrigins])];
 
-  // Allow frontend origins (from .env.dev ORAGIN) to call our API and send cookies
   app.use(
     cors({
-      origin: whitelist,
+      origin(origin, callback) {
+        if (!origin || whitelist.includes(origin)) {
+          return callback(null, origin || true);
+        }
+
+        return callback(new Error(`CORS blocked for origin: ${origin}`));
+      },
       credentials: true,
     })
   );
@@ -39,6 +54,8 @@ const bootstrap = (app, express) => {
   app.use('/auth', authController);
   app.use('/user', userController);
   app.use('/activity', activityController);
+  app.use('/activity-schedules', activityScheduleController);
+  app.use('/activity-bookings', activityBookingController);
   app.use('/rooms', roomController);
   app.use("/facilities", facilityController);
   app.use('/payment', paymentController);
