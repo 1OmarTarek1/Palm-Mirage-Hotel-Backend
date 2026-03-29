@@ -1,0 +1,405 @@
+{
+  "info": {
+    "name": "Menu API - Hotel System",
+    "_postman_id": "menu-api-collection-v2",
+    "description": "CRUD operations for Menu Items - Updated Schema - Hotel System NTI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "menuItemId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (Get Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data.accessToken) {",
+                  "    pm.collectionVariables.set('token', res.data.accessToken);",
+                  "    console.log('Token saved!');",
+                  "}",
+                  "if (res.accessToken) {",
+                  "    pm.collectionVariables.set('token', res.accessToken);",
+                  "    console.log('Token saved!');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"Admin123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login to get access token. Update email & password with your admin credentials. The token will be auto-saved to collection variables."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Menu Items - Public",
+      "item": [
+        {
+          "name": "Get All Menu Items",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/menu?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["menu"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "category",
+                  "value": "Restaurant",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "burger",
+                  "disabled": true
+                },
+                {
+                  "key": "available",
+                  "value": "true",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "newest",
+                  "description": "Options: newest, oldest, price_asc, price_desc, name_asc, name_desc",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all menu items with optional filters:\n- **category**: Desserts, Appetizer, Restaurant, Drinks\n- **search**: search by name or description\n- **available**: true/false\n- **sort**: newest, oldest, price_asc, price_desc, name_asc, name_desc\n- **page** & **limit**: pagination"
+          }
+        },
+        {
+          "name": "Get Menu (Grouped by Category)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/menu/grouped",
+              "host": ["{{baseUrl}}"],
+              "path": ["menu", "grouped"]
+            },
+            "description": "Get all menu items grouped by category. Returns categories list and categoryMenuItems object. Only returns available items per your latest service edit."
+          }
+        },
+        {
+          "name": "Get Menu Items by Category (Filter)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/menu?category=Restaurant",
+              "host": ["{{baseUrl}}"],
+              "path": ["menu"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Restaurant"
+                }
+              ]
+            },
+            "description": "Get menu items filtered by category. Used instead of the old param route.\nValid categories: Desserts, Appetizer, Restaurant, Drinks"
+          }
+        },
+        {
+          "name": "Get Menu Item by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data.item) {",
+                  "    console.log('Item found:', res.data.item.name);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/menu/{{menuItemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["menu", "{{menuItemId}}"]
+            },
+            "description": "Get a single menu item by its ID."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Menu Items - Admin",
+      "item": [
+        {
+          "name": "Create Menu Item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data.item && res.data.item._id) {",
+                  "    pm.collectionVariables.set('menuItemId', res.data.item._id);",
+                  "    console.log('Menu Item ID saved:', res.data.item._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Grilled Chicken",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Delicious grilled chicken with herbs and spices",
+                  "type": "text"
+                },
+                {
+                  "key": "price",
+                  "value": "150",
+                  "type": "text"
+                },
+                {
+                  "key": "category",
+                  "value": "Restaurant",
+                  "type": "text"
+                },
+                {
+                  "key": "categoryIcon",
+                  "value": "Utensils",
+                  "type": "text"
+                },
+                {
+                  "key": "categoryHeroImg",
+                  "type": "file",
+                  "src": "",
+                  "description": "Category hero image (Required first time per category)"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "",
+                  "description": "Menu item image - optional"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/menu",
+              "host": ["{{baseUrl}}"],
+              "path": ["menu"]
+            },
+            "description": "Create a new menu item. Requires admin authentication.\n\n**Required fields**: name, price, category, categoryIcon\n**Optional fields**: description, image (file upload)\n**categoryHeroImg**: Required ONLY for the first item added to a new category, otherwise automatically inherits from the last item."
+          }
+        },
+        {
+          "name": "Update Menu Item",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Grilled Chicken (Updated)",
+                  "type": "text"
+                },
+                {
+                  "key": "price",
+                  "value": "180",
+                  "type": "text"
+                },
+                {
+                  "key": "available",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "",
+                  "description": "Optional: new menu item image"
+                },
+                {
+                  "key": "categoryHeroImg",
+                  "type": "file",
+                  "src": "",
+                  "description": "Optional: override category hero image"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/menu/{{menuItemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["menu", "{{menuItemId}}"]
+            },
+            "description": "Update an existing menu item. Requires admin authentication.\nAll fields are optional - only send what you want to update."
+          }
+        },
+        {
+          "name": "Delete Menu Item",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/menu/{{menuItemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["menu", "{{menuItemId}}"]
+            },
+            "description": "Delete a menu item by ID. Requires admin authentication."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Menu Items - Validation Tests",
+      "item": [
+        {
+          "name": "Create with Invalid Category (Should Fail 400)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Test Item",
+                  "type": "text"
+                },
+                {
+                  "key": "price",
+                  "value": "100",
+                  "type": "text"
+                },
+                {
+                  "key": "category",
+                  "value": "Pizza",
+                  "type": "text"
+                },
+                {
+                  "key": "categoryIcon",
+                  "value": "Test",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/menu",
+              "host": ["{{baseUrl}}"],
+              "path": ["menu"]
+            },
+            "description": "Should return 400 - Validation error (invalid category)"
+          }
+        },
+        {
+          "name": "Create without Required Fields (Should Fail 400)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Test Item",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/menu",
+              "host": ["{{baseUrl}}"],
+              "path": ["menu"]
+            },
+            "description": "Should return 400 - missing required fields (price, category, categoryIcon)"
+          }
+        }
+      ]
+    }
+  ]
+}
