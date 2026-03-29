@@ -1,168 +1,179 @@
-import Menu from '../../../DB/Model/Menu.model.js';
-import Category from '../../../DB/Model/Category.model.js';
-import * as dbService from '../../../DB/db.service.js';
 import { asyncHandler } from '../../../utils/response/error.response.js';
+import { successResponse } from '../../../utils/response/success.response.js';
+import * as dbService from '../../../DB/db.service.js';
+import { menuModel } from '../../../DB/Model/Menu.model.js';
+import cloud from '../../../utils/multer/cloudinary.js';
 
-export const createMenuItem = asyncHandler(async (req, res) => {
-  const { name, description, price, category } = req.body;
+// 1. Create Menu Item
+export const createMenuItem = asyncHandler(async (req, res, next) => {
+  const { name, description, price, category, categoryIcon } = req.body;
 
-  // Verify category exists
-  const categoryExists = await dbService.findOne({
-    model: Category,
-    filter: { _id: category },
-  });
+  
+  let image;
+  if (req.files?.image?.[0]) {
+    const { secure_url } = await cloud.uploader.upload(req.files.image[0].path, {
+      folder: `${process.env.APP_NAME}/menu/items`,
+    });
+    image = secure_url;
+  }
 
-  if (!categoryExists) {
-    return res.status(400).json({ message: 'Invalid category' });
+  let categoryHeroImg;
+  if (req.files?.categoryHeroImg?.[0]) {
+    const { secure_url } = await cloud.uploader.upload(req.files.categoryHeroImg[0].path, {
+      folder: `${process.env.APP_NAME}/menu/categories`,
+    });
+    categoryHeroImg = secure_url;
+  } else {
+    const lastItemInCategory = await menuModel.findOne({ category }).sort({ createdAt: -1 });
+    categoryHeroImg = lastItemInCategory?.categoryHeroImg;
+  }
+
+  if (!categoryHeroImg) {
+    return next(new Error(`Category "${category}" requires a hero image for the first time.`, { cause: 400 }));
   }
 
   const item = await dbService.create({
-    model: Menu,
+    model: menuModel,
     data: {
       name,
       description,
       price,
       category,
-      image: req.file?.path,
+      categoryIcon,
+      categoryHeroImg,
+      image,
+      createdBy: req.user._id,
     },
   });
 
-  return res.status(201).json({
-    message: 'Menu item created',
-    item,
+  return successResponse({
+    res,
+    status: 201,
+    data: { item },
+    message: 'Menu item created successfully',
   });
 });
 
-// Get Menu - returns categories and menu items grouped by category
-export const getMenu = asyncHandler(async (req, res) => {
-  const categories = await dbService.find({
-    model: Category,
-  });
+// 2. Get All Menu Items (With Filters & Pagination)
+export const getAllMenuItems = asyncHandler(async (req, res, next) => {
+  const { category, search, available, sort, page = 1, limit = 10 } = req.query;
+  const filter = {};
 
-  const menuItems = await dbService.find({
-    model: Menu,
-    populate: [{ path: 'category', select: 'label' }],
-  });
-
-  // Group items by category label
-  const categoryMenuItems = {};
-  categories.forEach(cat => {
-    categoryMenuItems[cat.label] = menuItems
-      .filter(item => item.category._id.toString() === cat._id.toString())
-      .map(item => ({
-        id: item._id,
-        name: item.name,
-        description: item.description,
-        price: $`${item.price}`,
-        img: item.image,
-      }));
-  });
-
-  // Format categories for frontend
-  const formattedCategories = categories.map(cat => ({
-    label: cat.label,
-    Icon: cat.icon, // Frontend will map to actual icon
-    heroImg: cat.heroImg,
-  }));
-
-  return res.status(200).json({
-    message: 'Menu retrieved',
-    categories: formattedCategories,
-    categoryMenuItems,
-  });
-});
-
-
-// Get Menu Items by Category
-export const getMenuItemsByCategory = asyncHandler(async (req, res) => {
-  const { categoryId } = req.params;
-
-  const items = await dbService.find({
-    model: Menu,
-    filter: { category: categoryId },
-    populate: [{ path: 'category', select: 'label' }],
-  });
-
-  return res.status(200).json({
-    message: 'Menu items retrieved',
-    items,
-  });
-});
-
-// Get Menu Item by ID
-export const getMenuItemById = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const item = await dbService.findOne({
-    model: Menu,
-    filter: { _id: id },
-    populate: [{ path: 'category', select: 'label' }],
-  });
-
-  if (!item) {
-    return res.status(404).json({ message: 'Menu item not found' });
+  if (category) filter.category = category;
+  if (available !== undefined) filter.available = available === 'true';
+  if (search) {
+    filter.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { description: { $regex: search, $options: 'i' } },
+    ];
   }
 
-  return res.status(200).json({
-    message: 'Menu item retrieved',
-    item,
+  const sortOptions = {
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+    price_asc: { price: 1 },
+    price_desc: { price: -1 },
+    name_asc: { name: 1 },
+    name_desc: { name: -1 },
+  };
+  const sortBy = sortOptions[sort] || { createdAt: -1 };
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const [items, total] = await Promise.all([
+    menuModel.find(filter).sort(sortBy).skip(skip).limit(Number(limit)),
+    menuModel.countDocuments(filter),
+  ]);
+
+  return successResponse({
+    res,
+    data: {
+      items,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    },
   });
 });
 
- //Update Menu Item
-export const updateMenuItem = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { name, description, price, category, available } = req.body;
+// 3. Get Menu (Grouped by Category for Frontend)
+export const getMenu = asyncHandler(async (req, res, next) => {
+  const items = await menuModel.find({ available: true });
 
-  if (category) {
-    const categoryExists = await dbService.findOne({
-      model: Category,
-      filter: { _id: category },
-    });
-    if (!categoryExists) {
-      return res.status(400).json({ message: 'Invalid category' });
+  const categoryMenuItems = {};
+  const categoriesMap = {};
+
+  items.forEach((item) => {
+    if (!categoryMenuItems[item.category]) {
+      categoryMenuItems[item.category] = [];
+      categoriesMap[item.category] = {
+        label: item.category,
+        icon: item.categoryIcon,
+        heroImg: item.categoryHeroImg,
+      };
     }
+    categoryMenuItems[item.category].push({
+      id: item._id,
+      name: item.name,
+      description: item.description,
+      price: item.price,
+      image: item.image,
+    });
+  });
+
+  return successResponse({
+    res,
+    data: { 
+      categories: Object.values(categoriesMap), 
+      categoryMenuItems 
+    },
+  });
+});
+
+// 4. Update Menu Item
+export const updateMenuItem = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const updateData = { ...req.body };
+
+  if (req.files?.image?.[0]) {
+    const { secure_url } = await cloud.uploader.upload(req.files.image[0].path, {
+      folder: `${process.env.APP_NAME}/menu/items`,
+    });
+    updateData.image = secure_url;
+  }
+
+  if (req.files?.categoryHeroImg?.[0]) {
+    const { secure_url } = await cloud.uploader.upload(req.files.categoryHeroImg[0].path, {
+      folder: `${process.env.APP_NAME}/menu/categories`,
+    });
+    updateData.categoryHeroImg = secure_url;
   }
 
   const item = await dbService.findOneAndUpdate({
-    model: Menu,
+    model: menuModel,
     filter: { _id: id },
-    data: {
-      name,
-      description,
-      price,
-      category,
-      available,
-      ...(req.file?.path && { image: req.file.path }),
-    },
+    data: updateData,
     options: { new: true },
   });
 
-  if (!item) {
-    return res.status(404).json({ message: 'Menu item not found' });
-  }
+  if (!item) return next(new Error('Item not found', { cause: 404 }));
 
-  return res.status(200).json({
-    message: 'Menu item updated',
-    item,
-  });
+  return successResponse({ res, data: { item }, message: 'Updated successfully' });
 });
 
-// Delete Menu Item
-export const deleteMenuItem = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const item = await dbService.findOneAndDelete({
-    model: Menu,
-    filter: { _id: id },
-  });
-
-  if (!item) {
-    return res.status(404).json({ message: 'Menu item not found' });
-  }
-
-  return res.status(200).json({
-    message: 'Menu item deleted',
-    item,
-  });
+// 5. Get Single Item
+export const getMenuItemById = asyncHandler(async (req, res, next) => {
+  const item = await menuModel.findById(req.params.id);
+  if (!item) return next(new Error('Item not found', { cause: 404 }));
+  return successResponse({ res, data: { item } });
 });
+
+// 6. Delete Item
+export const deleteMenuItem = asyncHandler(async (req, res, next) => {
+  const item = await menuModel.findByIdAndDelete(req.params.id);
+  if (!item) return next(new Error('Item not found', { cause: 404 }));
+  return successResponse({ res, message: 'Deleted successfully' });
+});
+

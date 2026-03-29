@@ -1,35 +1,59 @@
 import { Router } from 'express';
-import {
-  createMenuItem,
-  getMenu,
-  getMenuItemsByCategory,
-  getMenuItemById,
-  updateMenuItem,
-  deleteMenuItem,
-} from './service/menu.service.js';
-import {
-  createCategory,
-  getCategories,
-  getCategoryById,
-  updateCategory,
-  deleteCategory,
-} from './service/category.service.js';
-import { uploadFile as upload } from '../../utils/multer/cloud.multer.js';
+import * as menuService from './service/menu.service.js';
+import * as validators from './menu.validation.js';
+import { validation } from '../../middleware/validation.middleware.js';
+import { authentication, authorization } from '../../middleware/auth.middleware.js';
+import { roleTypes } from '../../DB/Model/User.model.js';
+import { uploadCloudFile } from '../../utils/multer/cloud.multer.js';
+import { fileValidationTypes } from '../../utils/multer/local.multer.js';
+
 const router = Router();
+const upload = uploadCloudFile(fileValidationTypes.image);
 
-// Menu Item Routes
-router.post('/item', upload.single('image'), createMenuItem);
-router.get('/', getMenu);
-router.get('/item/category/:categoryId', getMenuItemsByCategory);
-router.get('/item/:id', getMenuItemById);
-router.put('/item/:id', upload.single('image'), updateMenuItem);
-router.delete('/item/:id', deleteMenuItem);
 
-// Category Routes
-router.post('/category', upload.single('heroImg'), createCategory);
-router.get('/categories', getCategories);
-router.get('/category/:id', getCategoryById);
-router.put('/category/:id', upload.single('heroImg'), updateCategory);
-router.delete('/category/:id', deleteCategory);
+router.get('/', 
+    validation(validators.queryFilter), 
+    menuService.getAllMenuItems
+);
+
+router.get('/grouped', 
+    menuService.getMenu
+);
+
+router.get('/:id', 
+    validation(validators.paramId), 
+    menuService.getMenuItemById
+);
+
+// ================== Admin Routes ==================
+
+router.post('/',
+    authentication(),
+    authorization([roleTypes.admin]),
+    upload.fields([
+        { name: 'image', maxCount: 1 }, 
+        { name: 'categoryHeroImg', maxCount: 1 }
+    ]),
+    validation(validators.createMenuItem),
+    menuService.createMenuItem
+);
+
+router.patch('/:id',
+    authentication(),
+    authorization([roleTypes.admin]),
+    upload.fields([
+        { name: 'image', maxCount: 1 }, 
+        { name: 'categoryHeroImg', maxCount: 1 }
+    ]),
+    validation(validators.updateMenuItem),
+    menuService.updateMenuItem
+);
+
+router.delete('/:id',
+    authentication(),
+    authorization([roleTypes.admin]),
+    validation(validators.paramId),
+    menuService.deleteMenuItem
+);
 
 export default router;
