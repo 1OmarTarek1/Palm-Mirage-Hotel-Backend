@@ -6,6 +6,8 @@ import { authentication, authorization } from "../../middleware/auth.middleware.
 import { roleTypes } from "../../DB/Model/User.model.js";
 import { uploadCloudFile } from "../../utils/multer/cloud.multer.js";
 import { fileValidationTypes } from "../../utils/multer/local.multer.js";
+import * as activityScheduleValidators from "../activitySchedule/activitySchedule.validation.js";
+import * as activityScheduleService from "../activitySchedule/services/activitySchedule.service.js";
 
 const router = Router();
 
@@ -19,6 +21,20 @@ router.post(
 );
 
 router.get("/", validation(validators.queryFilter), activityService.getAllActivities);
+
+router.get(
+  "/:activityId/schedules",
+  validation(activityScheduleValidators.activitySchedulesParam),
+  activityScheduleService.getSchedulesByActivity
+);
+
+router.post(
+  "/:activityId/schedules",
+  authentication(),
+  authorization([roleTypes.admin]),
+  validation(activityScheduleValidators.createSchedule),
+  activityScheduleService.createSchedule
+);
 
 router.get("/:id", validation(validators.paramId), activityService.getActivityById);
 

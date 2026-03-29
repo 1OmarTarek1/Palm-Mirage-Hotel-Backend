@@ -5,8 +5,51 @@ import { activityModel } from "../../../DB/Model/Activity.model.js";
 import cloudinary from "../../../utils/multer/cloudinary.js";
 import cloud from "../../../utils/multer/cloudinary.js";
 
+const parseArrayField = (value) => {
+  if (!value) return undefined;
+  if (Array.isArray(value)) return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+};
+
+const parseBooleanField = (value) => {
+  if (value === undefined) return undefined;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value === "true") return true;
+    if (value === "false") return false;
+  }
+  return undefined;
+};
+
+const parseNumberField = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+};
+
 export const createActivity = asyncHandler(async (req, res, next) => {
-  const { category, label, title, description, stats, highlights, icon } = req.body;
+  const { title, stats, highlights } = req.body;
+  const parsedStats = parseArrayField(stats);
+  const parsedHighlights = parseArrayField(highlights);
+  const basePrice = parseNumberField(req.body.basePrice);
+  const durationMinutes = parseNumberField(req.body.durationMinutes);
+  const defaultCapacity = parseNumberField(req.body.defaultCapacity);
+  const isActive = parseBooleanField(req.body.isActive);
+
+  const titleExists = await dbService.findOne({
+    model: activityModel,
+    filter: { title },
+  });
+  if (titleExists) {
+    return next(new Error("Activity with this title already exists", { cause: 409 }));
+  }
+
+  let uploadedImage;
 
   if (req.files) {
     const attacthments = [];
@@ -15,59 +58,26 @@ export const createActivity = asyncHandler(async (req, res, next) => {
         folder: `${process.env.APP_NAME}/activities`,
       });
       attacthments.push({ secure_url, public_id });
- 
     }
     req.body.attacthments = attacthments;
+    uploadedImage = attacthments[0];
   }
 
   const activity = await dbService.create({
     model: activityModel,
     data: {
       ...req.body,
-      userId: req.user._id,
+      stats: parsedStats || [],
+      highlights: parsedHighlights || [],
+      basePrice,
+      durationMinutes,
+      defaultCapacity,
+      isActive: isActive ?? true,
+      image: uploadedImage,
+      createdBy: req.user._id,
     },
   });
   return successResponse({ res, status: 201, data: { activity }, message: "Activity created successfully" });
-
-  // const titleExists = await dbService.findOne({
-  //   model: activityModel,
-  //   filter: { title },
-  // });
-  // if (titleExists) {
-  //   return next(new Error("Activity with this title already exists", { cause: 409 }));
-  // }
-
-  // let image = {};
-  // if (req.file) {
-  //   const uploadResult = await new Promise((resolve, reject) => {
-  //     const stream = cloudinary.uploader.upload_stream(
-  //       { folder: `${process.env.APP_NAME}/activities` },
-  //       (error, result) => {
-  //         if (error) return reject(error);
-  //         resolve(result);
-  //       }
-  //     );
-  //     stream.end(req.file.buffer);
-  //   });
-  //   image = { secure_url: uploadResult.secure_url, public_id: uploadResult.public_id };
-  // }
-
-  // const activity = await dbService.create({
-  //   model: activityModel,
-  //   data: {
-  //     category,
-  //     label,
-  //     title,
-  //     description,
-  //     image,
-  //     stats: stats || [],
-  //     highlights: highlights || [],
-  //     icon,
-  //     createdBy: req.user._id,
-  //   },
-  // });
-
-  // return successResponse({ res, status: 201, data: { activity } });
 });
 
 export const getAllActivities = asyncHandler(async (req, res, next) => {
@@ -130,7 +140,13 @@ export const getActivityById = asyncHandler(async (req, res, next) => {
 
 export const updateActivity = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { category, label, title, description, stats, highlights, icon } = req.body;
+  const { category, label, title, description, stats, highlights, icon, location, pricingType } = req.body;
+  const parsedStats = parseArrayField(stats);
+  const parsedHighlights = parseArrayField(highlights);
+  const basePrice = parseNumberField(req.body.basePrice);
+  const durationMinutes = parseNumberField(req.body.durationMinutes);
+  const defaultCapacity = parseNumberField(req.body.defaultCapacity);
+  const isActive = parseBooleanField(req.body.isActive);
 
   const existing = await dbService.findOne({
     model: activityModel,
@@ -173,8 +189,14 @@ export const updateActivity = asyncHandler(async (req, res, next) => {
   if (label) updateData.label = label;
   if (title) updateData.title = title;
   if (description) updateData.description = description;
-  if (stats) updateData.stats = stats;
-  if (highlights) updateData.highlights = highlights;
+  if (location !== undefined) updateData.location = location;
+  if (basePrice !== undefined) updateData.basePrice = basePrice;
+  if (pricingType) updateData.pricingType = pricingType;
+  if (durationMinutes !== undefined) updateData.durationMinutes = durationMinutes;
+  if (defaultCapacity !== undefined) updateData.defaultCapacity = defaultCapacity;
+  if (isActive !== undefined) updateData.isActive = isActive;
+  if (parsedStats) updateData.stats = parsedStats;
+  if (parsedHighlights) updateData.highlights = parsedHighlights;
   if (icon) updateData.icon = icon;
   if (image) updateData.image = image;
 
