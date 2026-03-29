@@ -74,7 +74,6 @@ export const getAllRooms = asyncHandler(async (req, res, next) => {
         select: "name icon -_id",  
       },
     ],
-    // ─────────────────────────────────────────────────────────────────────
   });
  
   return successResponse({
