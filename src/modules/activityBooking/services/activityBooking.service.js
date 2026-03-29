@@ -82,6 +82,16 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     return next(new Error("Activity schedule not found", { cause: 404 }));
   }
 
+  const existingBooking = await activityBookingModel.findOne({
+    user: req.user._id,
+    schedule: schedule._id,
+    status: { $in: activeBookingStatuses },
+  });
+
+  if (existingBooking) {
+    return next(new Error("You already booked this activity session", { cause: 409 }));
+  }
+
   if (!schedule.activity || !schedule.activity.isActive) {
     return next(new Error("Activity is not available for booking", { cause: 400 }));
   }
