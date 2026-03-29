@@ -1,6 +1,6 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 
-const bookingSchema = new mongoose.Schema(
+const bookingSchema = new Schema(
   {
     tableNumber: {
       type: Number,
@@ -40,7 +40,6 @@ const bookingSchema = new mongoose.Schema(
 bookingSchema.index({ tableNumber: 1, startTime: 1, endTime: 1 });
 bookingSchema.index({ user: 1 });
 
-const Booking =
-  mongoose.models.Booking || mongoose.model('Booking', bookingSchema);
+const Booking =mongoose.models.Booking || mongoose.model('Booking', bookingSchema);
 
 export default Booking;
