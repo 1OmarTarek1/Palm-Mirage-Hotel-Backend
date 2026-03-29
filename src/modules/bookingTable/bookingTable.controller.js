@@ -9,5 +9,5 @@ const router = Router();
 router.post("/book", authentication(), validation(validators.createBooking), createBooking);
 
 router.get("/available-tables", validation(validators.getAvailableTables), getAvailableTables);
-router.delete("/cancel/:number", authentication(), cancelBooking);
+router.delete("/cancel/:number", authentication(), validation(validators.cancelBooking), cancelBooking);
 export default router;
