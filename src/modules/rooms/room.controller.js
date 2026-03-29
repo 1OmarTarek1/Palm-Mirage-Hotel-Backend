@@ -31,6 +31,7 @@ roomRouter.post(
 roomRouter.patch(
   "/:id",
   // adminAuth,
+  uploadCloudFile(fileValidationTypes.image).array("roomImages", 5),
   // validation(roomValidator.updateRoomValidation),
   roomService.updateRoomById,
 );
