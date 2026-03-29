@@ -1,8 +1,8 @@
-import asyncHandler from "express-async-handler";
+import { asyncHandler } from "../../../utils/response/error.response.js";
 import * as dbService from "../../../DB/db.service.js";
 import { UserBooking } from "../../../DB/Model/UserBooking.model.js";
 import { RoomModel } from "../../../DB/Model/Room.model.js";
-
+import { successResponse } from "../../../utils/response/success.response.js";
 
 // Create Booking
 export const createBooking = asyncHandler(async (req, res, next) => {
@@ -11,12 +11,10 @@ export const createBooking = asyncHandler(async (req, res, next) => {
   const checkIn = new Date(checkInDate);
   const checkOut = new Date(checkOutDate);
 
-  // Validate dates
   if (checkIn >= checkOut) {
     return next(new Error("Invalid booking dates", { cause: 400 }));
   }
 
-  // Get room
   const room = await dbService.findOne({
     model: RoomModel,
     filter: { _id: roomId, isAvailable: true },
@@ -26,12 +24,10 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     return next(new Error("Room not available", { cause: 404 }));
   }
 
-  // Check capacity
   if (guests > room.capacity) {
     return next(new Error("Guests exceed room capacity", { cause: 400 }));
   }
 
-  // Prevent double booking
   const conflict = await dbService.findOne({
     model: UserBooking,
     filter: {
@@ -44,20 +40,14 @@ export const createBooking = asyncHandler(async (req, res, next) => {
 
   if (conflict) {
     return next(
-      new Error("Room already booked for selected dates", { cause: 400 })
+      new Error("Room already booked for selected dates", { cause: 400 }),
     );
   }
 
-  // Calculate nights
-  const nights = Math.ceil(
-    (checkOut - checkIn) / (1000 * 60 * 60 * 24)
-  );
-
-  // Calculate price
+  const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
   const pricePerNight = room.price - (room.discount || 0);
   const totalPrice = nights * pricePerNight;
 
-  // Create booking
   const booking = await dbService.create({
     model: UserBooking,
     data: {
@@ -74,10 +64,11 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     },
   });
 
-  return res.status(201).json({
-    success: true,
-    message: "Booking created successfully",
+  return successResponse({
+    res,
+    statusCode: 201,
     data: booking,
+    message: "Booking created successfully",
   });
 });
 
@@ -86,16 +77,14 @@ export const getMyBookings = asyncHandler(async (req, res) => {
   const bookings = await dbService.findAll({
     model: UserBooking,
     filter: { user: req.user._id },
-    populate: [
-      { path: "room", select: "roomName price roomImages" },
-    ],
+    populate: [{ path: "room", select: "roomName price roomImages" }],
     sort: "-createdAt",
   });
 
-  return res.status(200).json({
-    success: true,
-    results: bookings.length,
+  return successResponse({
+    res,
     data: bookings,
+    message: "Bookings retrieved successfully",
   });
 });
 
@@ -116,9 +105,10 @@ export const getBookingById = asyncHandler(async (req, res, next) => {
     return next(new Error("Booking not found", { cause: 404 }));
   }
 
-  return res.status(200).json({
-    success: true,
+  return successResponse({
+    res,
     data: booking,
+    message: "Booking retrieved successfully",
   });
 });
 
@@ -135,23 +125,20 @@ export const cancelBooking = asyncHandler(async (req, res, next) => {
     return next(new Error("Booking not found", { cause: 404 }));
   }
 
-  // Prevent cancelling completed bookings
   if (booking.status === "completed") {
-    return next(
-      new Error("Cannot cancel a completed booking", { cause: 400 })
-    );
+    return next(new Error("Cannot cancel a completed booking", { cause: 400 }));
   }
 
   booking.status = "cancelled";
   await booking.save();
 
-  return res.status(200).json({
-    success: true,
+  return successResponse({
+    res,
     message: "Booking cancelled successfully",
   });
 });
 
-// Update Booking (user can update guests, specialRequests, paymentMethod before check-in)
+// Update Booking
 export const updateBooking = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const { guests, specialRequests, paymentMethod } = req.body;
@@ -166,36 +153,32 @@ export const updateBooking = asyncHandler(async (req, res, next) => {
     return next(new Error("Booking not found", { cause: 404 }));
   }
 
-  // Only pending bookings can be updated
   if (booking.status !== "pending") {
     return next(
-      new Error("Only pending bookings can be updated", { cause: 400 })
+      new Error("Only pending bookings can be updated", { cause: 400 }),
     );
   }
 
-  // Prevent updates after check-in date
   if (new Date() >= new Date(booking.checkInDate)) {
     return next(
-      new Error("Cannot update booking after check-in date", { cause: 400 })
+      new Error("Cannot update booking after check-in date", { cause: 400 }),
     );
   }
 
-  // Validate guests against room capacity
   if (guests && guests > booking.room.capacity) {
     return next(new Error("Guests exceed room capacity", { cause: 400 }));
   }
 
-  // Apply updates
   if (guests) booking.guests = guests;
   if (specialRequests !== undefined) booking.specialRequests = specialRequests;
   if (paymentMethod) booking.paymentMethod = paymentMethod;
 
   await booking.save();
 
-  return res.status(200).json({
-    success: true,
-    message: "Booking updated successfully",
+  return successResponse({
+    res,
     data: booking,
+    message: "Booking updated successfully",
   });
 });
 
@@ -210,9 +193,9 @@ export const getAllBookings = asyncHandler(async (req, res) => {
     sort: "-createdAt",
   });
 
-  return res.status(200).json({
-    success: true,
-    results: bookings.length,
+  return successResponse({
+    res,
     data: bookings,
+    message: "All bookings retrieved successfully",
   });
 });
