@@ -10,15 +10,24 @@ import facilityController from './modules/facility/facility.controller.js';
 import paymentController from './modules/payment/payment.controller.js';
 import { globalErrorHandling } from './utils/response/error.response.js';
 import helmet from 'helmet';
-// import rateLimit from "express-rate-limit";
 import bookingController from './modules/bookingTable/bookingTable.controller.js';
 import tableController from './modules/restaurantTable/restaurantTable.controller.js';
 import menuController from './modules/menu/menu.controller.js'
-// const limiter = rateLimit({
-//   limit: 5,
-//   windowMs: 2 * 6 * 1000,
-//   message: "Rate limit exceeded",
-// });
+
+const parseCookies = (cookieHeader = '') =>
+  cookieHeader
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((acc, part) => {
+      const separatorIndex = part.indexOf('=');
+      if (separatorIndex === -1) return acc;
+
+      const key = part.slice(0, separatorIndex).trim();
+      const value = decodeURIComponent(part.slice(separatorIndex + 1).trim());
+      acc[key] = value;
+      return acc;
+    }, {});
 
 const bootstrap = (app, express) => {
   const defaultOrigins = [
@@ -45,8 +54,10 @@ const bootstrap = (app, express) => {
     })
   );
 
-  //   app.use("/auth", limiter);
-  //   app.use(limiter);
+  app.use((req, res, next) => {
+    req.cookies = parseCookies(req.headers.cookie);
+    next();
+  });
 
   app.use(express.json());
   app.use(helmet());

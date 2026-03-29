@@ -1,15 +1,26 @@
 import { asyncHandler } from "../../../utils/response/error.response.js";
 import * as dbService from "../../../DB/db.service.js";
 import { otpTypes, providerTypes, roleTypes, userModel } from "../../../DB/Model/User.model.js";
-import { compareHash, generateEncryptHash, generateHash } from "../../../utils/security/hash.security.js";
+import { compareHash, generateHash } from "../../../utils/security/hash.security.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 import { emailEvent } from "../../../utils/event/email.event.js";
 import { decodeToken, generateToken, tokenTypes } from "../../../utils/security/token.security.js";
 import { OAuth2Client } from "google-auth-library";
 
+const buildRefreshCookieOptions = () => ({
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.MOOD !== "DEV",
+  maxAge: 365 * 24 * 60 * 60 * 1000,
+  path: "/auth/refresh-token",
+});
+
+const attachRefreshTokenCookie = (res, refreshToken) => {
+  res.cookie("refreshToken", refreshToken, buildRefreshCookieOptions());
+};
+
 export const login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
-  console.log({ email, password });
 
   const user = await dbService.findOne({ model: userModel, filter: { email } });
 
@@ -60,7 +71,6 @@ export const login = asyncHandler(async (req, res, next) => {
   });
 });
 
-// omar - login with google
 export const loginWithGmail = asyncHandler(async (req, res, next) => {
   const { idToken, mode = "login" } = req.body;
   const client = new OAuth2Client(process.env.CLIENT_ID);
@@ -127,12 +137,13 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
     expiresIn: 31536000,
   });
 
+  attachRefreshTokenCookie(res, refreshToken);
+
   return successResponse({
     res,
     status: 200,
     data: {
       accessToken,
-      refreshToken,
       isNewUser: !user.createdAt || Date.now() - new Date(user.createdAt).getTime() < 5000,
     },
   });
@@ -150,8 +161,12 @@ export const getMe = asyncHandler(async (req, res, next) => {
 });
 
 export const refreshToken = asyncHandler(async (req, res, next) => {
+  const cookieRefreshToken = req.cookies?.refreshToken;
+  const authHeader = req.headers.authorization;
+  const authorization = cookieRefreshToken ? `Bearer ${cookieRefreshToken}` : authHeader;
+
   const user = await decodeToken({
-    authorization: req.headers.authorization,
+    authorization,
     tokenType: tokenTypes.refresh,
     next,
   });
@@ -160,12 +175,15 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
     payload: { id: user._id },
     signature: user.role === roleTypes.admin ? process.env.SYSTEM_ACCESS_TOKEN : process.env.USER_ACCESS_TOKEN,
   });
-  ///////////////////////////////
   const refreshToken = generateToken({
     payload: { id: user._id },
     signature: user.role === roleTypes.admin ? process.env.SYSTEM_REFRESH_TOKEN : process.env.USER_REFRESH_TOKEN,
     expiresIn: "7d",
   });
+
+  if (cookieRefreshToken) {
+    attachRefreshTokenCookie(res, refreshToken);
+  }
 
   return successResponse({
     res,
@@ -173,7 +191,7 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
     data: {
       token: {
         accessToken,
-        refreshToken,
+        refreshToken: cookieRefreshToken ? undefined : refreshToken,
       },
     },
   });
@@ -200,7 +218,6 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
   return successResponse({ res });
 });
 
-//reset password
 export const resetPassword = asyncHandler(async (req, res, next) => {
   const { email, code, password } = req.body;
 
@@ -212,13 +229,11 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
     return next(new Error("In-valid account"), { cause: 404 });
   }
 
-  //chech if otp expires
   const validOtp = user.OTP.find((otp) => otp.expiresIn > new Date() && otp.type === otpTypes.forgetPassword);
   if (!validOtp) {
     emailEvent.emit("sendForgetPassword", { email });
     return next(new Error("expires OTP PLease input your new OTP from your email"), { cause: 404 });
   }
-  //check otp type
   if (!compareHash({ plainText: code, hashValue: validOtp.code })) {
     return next(new Error("Invalid code"), { cause: 400 });
   }
