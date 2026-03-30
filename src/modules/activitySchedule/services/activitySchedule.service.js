@@ -1,6 +1,7 @@
 import { activityModel } from "../../../DB/Model/Activity.model.js";
 import { activityScheduleModel } from "../../../DB/Model/ActivitySchedule.model.js";
 import * as dbService from "../../../DB/db.service.js";
+import { paginate } from "../../../utils/pagination/pagination.js";
 import { asyncHandler } from "../../../utils/response/error.response.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 
@@ -133,28 +134,29 @@ export const getAllSchedules = asyncHandler(async (req, res) => {
     date_asc: { date: 1, startTime: 1 },
     date_desc: { date: -1, startTime: -1 },
   };
-
-  const skip = (Number(page) - 1) * Number(limit);
-
-  const [schedules, total] = await Promise.all([
-    activityScheduleModel
-      .find(filter)
-      .sort(sortOptions[sort] || { date: 1, startTime: 1 })
-      .skip(skip)
-      .limit(Number(limit))
-      .populate("activity", "title label category image basePrice pricingType location"),
-    activityScheduleModel.countDocuments(filter),
-  ]);
+  const result = await paginate({
+    page: Number(page) || 1,
+    size: Number(limit) || 10,
+    model: activityScheduleModel,
+    filter,
+    populate: [
+      {
+        path: "activity",
+        select: "title label category image basePrice pricingType location",
+      },
+    ],
+    sort: sortOptions[sort] || { date: 1, startTime: 1 },
+  });
 
   return successResponse({
     res,
     data: {
-      schedules: schedules.map(normalizeScheduleForResponse),
+      schedules: result.data.map(normalizeScheduleForResponse),
       pagination: {
-        total,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(total / Number(limit)),
+        total: result.count,
+        page: result.page,
+        limit: result.size,
+        totalPages: Math.ceil(result.count / result.size),
       },
     },
   });

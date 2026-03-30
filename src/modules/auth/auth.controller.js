@@ -14,8 +14,10 @@ router.post("/login", validation(validators.login), loginService.login)
 router.post("/login-google", validation(validators.loginWithGoogle), loginService.loginWithGmail)
 
 router.get("/me", authentication(), loginService.getMe)
+router.get("/profile", authentication(), loginService.getMe)
 
 router.get("/refresh-token", loginService.refreshToken)
+router.post("/logout", loginService.logout)
  router.patch("/forgot-password", validation(validators.forgetPassword), loginService.forgotPassword)
 
 router.patch("/reset-password", validation(validators.resetPassword), loginService.resetPassword)
