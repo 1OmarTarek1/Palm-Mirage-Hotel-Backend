@@ -15,8 +15,28 @@ const buildRefreshCookieOptions = () => ({
   path: "/auth/refresh-token",
 });
 
+const buildAccessCookieOptions = () => ({
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.MOOD !== "DEV",
+  maxAge: 24 * 60 * 60 * 1000,
+  path: "/",
+});
+
 const attachRefreshTokenCookie = (res, refreshToken) => {
   res.cookie("refreshToken", refreshToken, buildRefreshCookieOptions());
+};
+
+const attachAccessTokenCookie = (res, accessToken) => {
+  res.cookie("accessToken", accessToken, buildAccessCookieOptions());
+};
+
+const clearRefreshTokenCookie = (res) => {
+  res.clearCookie("refreshToken", buildRefreshCookieOptions());
+};
+
+const clearAccessTokenCookie = (res) => {
+  res.clearCookie("accessToken", buildAccessCookieOptions());
 };
 
 export const login = asyncHandler(async (req, res, next) => {
@@ -60,19 +80,21 @@ export const login = asyncHandler(async (req, res, next) => {
     expiresIn: 31536000,
   });
 
+  attachRefreshTokenCookie(res, refreshToken);
+  attachAccessTokenCookie(res, accessToken);
+
   return successResponse({
     res,
     status: 200,
     data: {
       role: user.role,
       accessToken,
-      refreshToken,
     },
   });
 });
 
 export const loginWithGmail = asyncHandler(async (req, res, next) => {
-  const { idToken, mode = "login" } = req.body;
+  const { idToken } = req.body;
   const client = new OAuth2Client(process.env.CLIENT_ID);
 
   const ticket = await client.verifyIdToken({
@@ -96,9 +118,6 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
         cause: 409,
       });
     }
-    if (mode === "register") {
-      return next(new Error("This Google account is already registered. Please login instead."), { cause: 409 });
-    }
     if (user.bannedAt) {
       return next(new Error("Your account is banned"), { cause: 403 });
     }
@@ -110,10 +129,6 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
       });
     }
   } else {
-    if (mode === "login") {
-      return next(new Error("No account found with this Google email. Please register first."), { cause: 404 });
-    }
-
     user = await dbService.create({
       model: userModel,
       data: {
@@ -138,6 +153,7 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
   });
 
   attachRefreshTokenCookie(res, refreshToken);
+  attachAccessTokenCookie(res, accessToken);
 
   return successResponse({
     res,
@@ -184,6 +200,7 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
   if (cookieRefreshToken) {
     attachRefreshTokenCookie(res, refreshToken);
   }
+  attachAccessTokenCookie(res, accessToken);
 
   return successResponse({
     res,
@@ -194,6 +211,16 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
         refreshToken: cookieRefreshToken ? undefined : refreshToken,
       },
     },
+  });
+});
+
+export const logout = asyncHandler(async (req, res) => {
+  clearRefreshTokenCookie(res);
+  clearAccessTokenCookie(res);
+
+  return successResponse({
+    res,
+    status: 200,
   });
 });
 

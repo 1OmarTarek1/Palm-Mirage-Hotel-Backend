@@ -2,6 +2,7 @@ import { activityBookingModel } from "../../../DB/Model/ActivityBooking.model.js
 import { activityModel } from "../../../DB/Model/Activity.model.js";
 import { activityScheduleModel } from "../../../DB/Model/ActivitySchedule.model.js";
 import * as dbService from "../../../DB/db.service.js";
+import { paginate } from "../../../utils/pagination/pagination.js";
 import { asyncHandler } from "../../../utils/response/error.response.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 
@@ -179,28 +180,25 @@ export const getAllBookings = asyncHandler(async (req, res) => {
     ];
   }
 
-  const skip = (Number(page) - 1) * Number(limit);
   const sortBy = sort === "oldest" ? { createdAt: 1 } : { createdAt: -1 };
-
-  const [bookings, total] = await Promise.all([
-    activityBookingModel
-      .find(filter)
-      .sort(sortBy)
-      .skip(skip)
-      .limit(Number(limit))
-      .populate(bookingPopulate),
-    activityBookingModel.countDocuments(filter),
-  ]);
+  const result = await paginate({
+    page: Number(page) || 1,
+    size: Number(limit) || 20,
+    model: activityBookingModel,
+    filter,
+    populate: bookingPopulate,
+    sort: sortBy,
+  });
 
   return successResponse({
     res,
     data: {
-      bookings: bookings.map(normalizeBooking),
+      bookings: result.data.map(normalizeBooking),
       pagination: {
-        total,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(total / Number(limit)),
+        total: result.count,
+        page: result.page,
+        limit: result.size,
+        totalPages: Math.ceil(result.count / result.size),
       },
     },
   });

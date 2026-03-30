@@ -8,8 +8,12 @@ export const create = async ({ model, data = {} } = {}) => {
 }
 
 ////find
-export const findAll = async ({ model, filter = {}, select = "", populate = [], skip = 0, limit = 1000 } = {}) => {
-    const decuments = await model.find(filter).select(select).populate(populate).skip(skip).limit(limit);
+export const findAll = async ({ model, filter = {}, select = "", populate = [], skip = 0, limit = 1000, sort = "" } = {}) => {
+    let query = model.find(filter).select(select).populate(populate).skip(skip).limit(limit);
+    if (sort && (typeof sort !== "string" || sort.trim())) {
+        query = query.sort(sort);
+    }
+    const decuments = await query;
     return decuments
 }
 export const findOne = async ({ model, filter = {}, select = "", populate = [] } = {}) => {
