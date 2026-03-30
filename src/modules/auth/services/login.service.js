@@ -165,7 +165,7 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
   });
 });
 
-export const getMe = asyncHandler(async (req, res, next) => {
+export const getAuthenticatedAccount = asyncHandler(async (req, res, next) => {
   const { _id, userName, email, image, provider, gender, DOB, phoneNumber, country, role, createdAt } = req.user;
 
   return successResponse({
