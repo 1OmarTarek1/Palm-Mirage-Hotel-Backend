@@ -42,7 +42,7 @@ export const resetPassword = joi
     code: generalFields.code.required(),
     email: generalFields.email.required(),
     password: generalFields.password.required(),
-    confirmationPassword: generalFields.confirmationPassword
+    confirmPassword: generalFields.confirmationPassword
       .valid(joi.ref('password'))
       .required(),
   })
