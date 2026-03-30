@@ -9,9 +9,10 @@ import {
 import * as validators from './restaurantTable.validation.js';
 const router = Router();
 
-router.post('/add-table', authentication(), authorization(['admin']), validation(validators.createTable), tableService.createTable);
+router.post('/create-table', authentication(), authorization(['admin']), validation(validators.createTable), tableService.createTable);
 router.get('/get-table', tableService.getTables);
-router.put('/:number', authentication(), authorization(['admin']), validation(validators.updateTable), tableService.updateTable);
-router.delete('/:number', authentication(), authorization(['admin']), validation(validators.deleteTable), tableService.deleteTable);
+router.get("/get-table/:number",validation(validators.getTableByNumber), tableService.getTableByNumber);
+router.patch('/update-table/:number', authentication(), authorization(['admin']), validation(validators.updateTable), tableService.updateTable);
+router.delete('/delete-table/:number', authentication(), authorization(['admin']), validation(validators.deleteTable), tableService.deleteTable);
 
 export default router;
