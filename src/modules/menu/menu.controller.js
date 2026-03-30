@@ -11,23 +11,22 @@ const router = Router();
 const upload = uploadCloudFile(fileValidationTypes.image);
 
 
-router.get('/', 
-    validation(validators.queryFilter), 
+router.get('/get-all-items', 
     menuService.getAllMenuItems
 );
 
-router.get('/grouped', 
+router.get('/menu-grouped', 
     menuService.getMenu
 );
 
-router.get('/:id', 
-    validation(validators.paramId), 
-    menuService.getMenuItemById
-);
+// router.get('getById/:id', 
+//     validation(validators.paramId), 
+//     menuService.getMenuItemById
+// );
 
 // ================== Admin Routes ==================
 
-router.post('/',
+router.post('/add-item',
     authentication(),
     authorization([roleTypes.admin]),
     upload.fields([
@@ -38,7 +37,7 @@ router.post('/',
     menuService.createMenuItem
 );
 
-router.patch('/:id',
+router.patch('/update-item/:id',
     authentication(),
     authorization([roleTypes.admin]),
     upload.fields([
@@ -49,7 +48,7 @@ router.patch('/:id',
     menuService.updateMenuItem
 );
 
-router.delete('/:id',
+router.delete('/delete-item/:id',
     authentication(),
     authorization([roleTypes.admin]),
     validation(validators.paramId),

@@ -11,6 +11,10 @@ export const updateTable = Joi.object({
   chairs: Joi.number().integer().min(1),
 });
 
+export const getTableByNumber = Joi.object({
+  number: Joi.number().integer().min(1),
+});
+
 export const deleteTable = Joi.object({
   number: Joi.number().integer().min(1),
 });

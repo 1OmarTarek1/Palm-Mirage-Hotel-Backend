@@ -22,7 +22,7 @@ roomRouter.get("/:id", roomService.getRoomById);
 
 //  Admin Routes
 roomRouter.post(
-  "/",
+  "/create-room",
   // adminAuth,
   uploadCloudFile(fileValidationTypes.image).array("roomImages", 5),
   // validation(roomValidator.createRoomValidation),
