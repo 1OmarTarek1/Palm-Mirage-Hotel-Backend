@@ -34,7 +34,7 @@ emailEvent.on('sendForgetPassword', async (data) => {
   const { email } = data;
 
   // create OTP
-  const emailotp = customAlphabet('0123456789', 6)();
+  const emailotp = customAlphabet('0123456789', 4)();
 
   // hash OTP
   const hashOTP = generateHash({ plainText: `${emailotp}` });
