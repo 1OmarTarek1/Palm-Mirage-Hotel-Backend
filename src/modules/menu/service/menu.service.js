@@ -8,7 +8,6 @@ import cloud from '../../../utils/multer/cloudinary.js';
 export const createMenuItem = asyncHandler(async (req, res, next) => {
   const { name, description, price, category, categoryIcon } = req.body;
 
-  
   let image;
   if (req.files?.image?.[0]) {
     const { secure_url } = await cloud.uploader.upload(req.files.image[0].path, {
@@ -163,12 +162,12 @@ export const updateMenuItem = asyncHandler(async (req, res, next) => {
   return successResponse({ res, data: { item }, message: 'Updated successfully' });
 });
 
-// 5. Get Single Item
-export const getMenuItemById = asyncHandler(async (req, res, next) => {
-  const item = await menuModel.findById(req.params.id);
-  if (!item) return next(new Error('Item not found', { cause: 404 }));
-  return successResponse({ res, data: { item } });
-});
+// // 5. Get Single Item
+// export const getMenuItemById = asyncHandler(async (req, res, next) => {
+//   const item = await menuModel.findById(req.params.id);
+//   if (!item) return next(new Error('Item not found', { cause: 404 }));
+//   return successResponse({ res, data: { item } });
+// });
 
 // 6. Delete Item
 export const deleteMenuItem = asyncHandler(async (req, res, next) => {

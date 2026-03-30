@@ -6,7 +6,7 @@ import * as validators from "./bookingTable.validation.js";
 
 const router = Router();
 
-router.post("/book", authentication(), validation(validators.createBooking), createBooking);
+router.post("/booking", authentication(), validation(validators.createBooking), createBooking);
 
 router.get("/available-tables", validation(validators.getAvailableTables), getAvailableTables);
 router.delete("/cancel/:number", authentication(), validation(validators.cancelBooking), cancelBooking);
