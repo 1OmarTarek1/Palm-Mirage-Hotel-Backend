@@ -9,8 +9,8 @@ import * as bookingValidator from "./booking.validation.js";
 const bookingRouter = Router();
 
 // ---------------- Auth shortcuts ----------------
-const userAuth = [authentication, authorization(roleTypes.user)];
-const adminAuth = [authentication, authorization(roleTypes.admin)];
+const userAuth = [authentication(), authorization(roleTypes.user)];
+const adminAuth = [authentication(), authorization(roleTypes.admin)];
 
 // ---------------- User Routes ----------------
 

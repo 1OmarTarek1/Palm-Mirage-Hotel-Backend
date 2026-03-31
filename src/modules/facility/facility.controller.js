@@ -5,7 +5,7 @@ import { roleTypes } from "../../DB/Model/User.model.js";
 
 const facilityRouter = Router();
 
-const adminAuth = [authentication, authorization(roleTypes.admin)];
+const adminAuth = [authentication(), authorization(roleTypes.admin)];
 
 // Public
 facilityRouter.get("/", facilityService.getAllFacilities);
