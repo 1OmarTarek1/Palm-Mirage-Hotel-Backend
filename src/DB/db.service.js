@@ -23,7 +23,11 @@ export const findOne = async ({ model, filter = {}, select = "", populate = [] }
 
 // Update
 export const findOneAndUpdate = async ({ model, filter = {}, data = {}, options = {}, select = "", populate = [] , sort= "" } = {}) => {
-    const decument = await model.findOneAndUpdate(filter, data, options).select(select).populate(populate).sort(sort);;
+    let query = model.findOneAndUpdate(filter, data, options).select(select).populate(populate);
+    if (sort && (typeof sort !== "string" || sort.trim())) {
+        query = query.sort(sort);
+    }
+    const decument = await query;
     return decument
 }
 export const findByIdAndUpdate = async ({ model, id = {}, data = {}, options = {}, select = "", populate = [] } = {}) => {
