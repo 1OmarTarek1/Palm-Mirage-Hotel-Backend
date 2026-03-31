@@ -45,3 +45,4 @@ export const confirmEmail = asyncHandler(async (req, res, next) => {
 
   return successResponse({ res, status: 201, data: {} });
 });
+
