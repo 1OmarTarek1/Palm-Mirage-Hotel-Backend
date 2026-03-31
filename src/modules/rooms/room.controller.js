@@ -13,7 +13,7 @@ import { fileValidationTypes } from "../../utils/multer/local.multer.js";
 
 const roomRouter = Router();
 
-const adminAuth = [authentication, authorization(roleTypes.admin)];
+const adminAuth = [authentication(), authorization(roleTypes.admin)];
 
 roomRouter.get("/", roomService.getAllRooms);
 roomRouter.get("/offers", roomService.getRoomsWithOffers);
