@@ -1,14 +1,31 @@
 import { Router } from "express";
-// import * as profileService from "./service/profile.service.js";
-//   import { authentication, authorization } from "../../middleware/auth.middleware.js";
-
+import * as userService from "./service/user.service.js";
+import { authentication } from "../../middleware/auth.middleware.js";
+// import { endPoint } from "./user.authorization.js";
+// import * as validators from "./user.validation.js";
+// import { validation } from "../../middleware/validation.middleware.js";
+ 
 const router = Router();
 
-router.get("/profile");
-// router.patch("/profile/update-password");
+router.get("/user-data", authentication(), userService.userData);
+router.patch("/profile/deleteAccount", authentication(), userService.deleteAccount);
 
-// router.patch("/profile/deleteAccount", authentication(), profileService.deleteAccount);
 
 //admin
+
+// router.patch(
+//   "/admin/ban-user/:userId",
+//   authentication(),
+//   authorization(endPoint.admin),
+//   userService.banUserfromAdmin
+// );
+// router.patch(
+//   "/admin/unban-user/:userId",
+//   authentication(),
+//   authorization(endPoint.admin),
+//   validation(validators.ban),
+//   userService.unbanUserfromAdmin
+// );
+
 
 export default router;
