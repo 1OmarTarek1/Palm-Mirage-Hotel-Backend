@@ -8,7 +8,7 @@ export const signup = joi
     country: generalFields.country.required(),
     email: generalFields.email.required(),
     password: generalFields.password.required(),
-    confirmationPassword: generalFields.confirmationPassword.valid(joi.ref("password")).required(),
+    confirmPassword: generalFields.confirmationPassword.valid(joi.ref("password")).required(),
     phoneNumber: generalFields.phone.required(),
   })
   .required();
