@@ -35,6 +35,6 @@ roomRouter.patch(
   // validation(roomValidator.updateRoomValidation),
   roomService.updateRoomById,
 );
-// roomRouter.delete("/:id", adminAuth, roomService.deleteRoomById);
+roomRouter.delete("/:id", adminAuth, roomService.deleteRoomById);
 
 export default roomRouter;
