@@ -1,4 +1,4 @@
-import { model, Schema } from "mongoose";
+import mongoose, { model, Schema } from "mongoose";
 
 export const hotelschema = new Schema(
   {
@@ -15,6 +15,4 @@ export const hotelschema = new Schema(
   { timestamps: true }
 );
 
-
-
-export const hotelModel = mongoose.models.hotel || model("hotel", hotelModel);
+export const hotelModel = mongoose.models.Hotel || model("Hotel", hotelschema);

@@ -5,12 +5,12 @@ import { successResponse } from "../../../utils/response/success.response.js";
 
 //  Create Facility
 export const createFacility = asyncHandler(async (req, res, next) => {
-  const { name, icon, description } = req.body;
+  const { name, icon, description, category, location, capacity, status, image, operatingHours } = req.body;
 
   // prevent duplicates
   const existing = await dbService.findOne({
     model: FacilityModel,
-    filter: { name: name.toLowerCase() },
+    filter: { name: name.trim().toLowerCase() },
   });
 
   if (existing) {
@@ -20,15 +20,21 @@ export const createFacility = asyncHandler(async (req, res, next) => {
   const facility = await dbService.create({
     model: FacilityModel,
     data: {
-      name: name.toLowerCase(),
+      name: name.trim().toLowerCase(),
+      category,
       icon,
       description,
+      location,
+      capacity,
+      status,
+      image,
+      operatingHours,
     },
   });
 
   return successResponse({
     res,
-    data: facility,
+    data: { facility },
     message: "Facility created successfully",
   });
 });
@@ -42,7 +48,7 @@ export const getAllFacilities = asyncHandler(async (req, res, next) => {
 
   return successResponse({
     res,
-    data: facilities,
+    data: { facilities },
     message: "Facilities retrieved successfully",
   });
 });
@@ -62,7 +68,7 @@ export const getFacilityById = asyncHandler(async (req, res, next) => {
 
   return successResponse({
     res,
-    data: facility,
+    data: { facility },
     message: "Facility retrieved successfully",
   });
 });
@@ -83,7 +89,7 @@ export const updateFacilityById = asyncHandler(async (req, res, next) => {
   const updates = { ...req.body };
 
   if (updates.name) {
-    updates.name = updates.name.toLowerCase();
+    updates.name = updates.name.trim().toLowerCase();
   }
 
   const updatedFacility = await dbService.findByIdAndUpdate({
@@ -95,7 +101,7 @@ export const updateFacilityById = asyncHandler(async (req, res, next) => {
 
   return successResponse({
     res,
-    data: updatedFacility,
+    data: { facility: updatedFacility },
     message: "Facility updated successfully",
   });
 });

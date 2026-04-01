@@ -4,7 +4,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"node --watch index.js\" \"node src/utils/deleteExpierOTP/cron.js\""
+    "dev": "concurrently \"node --watch index.js\" \"node src/utils/deleteExpierOTP/cron.js\"",
+    "seed:local": "node scripts/seed-local-data.js"
   },
   "keywords": [],
   "author": "",
