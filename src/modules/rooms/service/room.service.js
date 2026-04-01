@@ -212,21 +212,15 @@ export const updateRoomById = asyncHandler(async (req, res, next) => {
 
   if (req.files?.length) {
     newImages = await Promise.all(
-      req.files.map((file) =>
-        new Promise((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            { folder: `${process.env.APP_NAME}/room` },
-            (error, result) => {
-              if (error) return reject(error);
-              resolve({
-                secure_url: result.secure_url,
-                public_id: result.public_id,
-              });
-            },
-          );
-
-          stream.end(file.buffer);
-        }),
+      req.files.map(async (file) =>
+        cloudinary.uploader
+          .upload(file.path, {
+            folder: `${process.env.APP_NAME}/room`,
+          })
+          .then(({ secure_url, public_id }) => ({
+            secure_url,
+            public_id,
+          })),
       ),
     );
   }
