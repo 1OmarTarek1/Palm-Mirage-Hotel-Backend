@@ -5,7 +5,7 @@ import { roleTypes } from "../../DB/Model/User.model.js";
 
 const facilityRouter = Router();
 
-const adminAuth = [authentication(), authorization(roleTypes.admin)];
+const adminAuth = [authentication(), authorization([roleTypes.admin])];
 
 // Public
 facilityRouter.get("/", facilityService.getAllFacilities);
@@ -13,13 +13,13 @@ facilityRouter.get("/:id", facilityService.getFacilityById);
 
 // Admin
 facilityRouter.post("/",
-    //  adminAuth, 
+     ...adminAuth, 
      facilityService.createFacility);
 facilityRouter.patch("/:id",
-    //  adminAuth,
+      ...adminAuth,
       facilityService.updateFacilityById);
 facilityRouter.delete("/:id",
-    //  adminAuth,
+      ...adminAuth,
       facilityService.deleteFacilityById);
 
 export default facilityRouter;
