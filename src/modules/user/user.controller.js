@@ -1,14 +1,30 @@
 import { Router } from "express";
-// import * as profileService from "./service/profile.service.js";
-//   import { authentication, authorization } from "../../middleware/auth.middleware.js";
-
+import * as userService from "./service/user.service.js";
+import { authentication, authorization } from "../../middleware/auth.middleware.js";
+import { roleTypes } from "../../DB/Model/User.model.js";
+import * as validators from "./user.validation.js";
+import { validation } from "../../middleware/validation.middleware.js";
+ 
 const router = Router();
+const adminAuth = [authentication(), authorization([roleTypes.admin])];
 
-router.get("/profile");
-// router.patch("/profile/update-password");
+router.get("/user-data", authentication(), userService.userData);
+router.patch("/profile/deleteAccount", authentication(), userService.deleteAccount);
 
-// router.patch("/profile/deleteAccount", authentication(), profileService.deleteAccount);
+router.get("/", ...adminAuth, userService.getAllUsers);
+router.post("/", ...adminAuth, validation(validators.createAdminUser), userService.createAdminUser);
+router.patch(
+  "/:userId",
+  ...adminAuth,
+  validation(validators.updateAdminUser),
+  userService.updateAdminUser
+);
+router.delete(
+  "/:userId",
+  ...adminAuth,
+  validation(validators.adminUserIdParam),
+  userService.deleteAdminUser
+);
 
-//admin
 
 export default router;

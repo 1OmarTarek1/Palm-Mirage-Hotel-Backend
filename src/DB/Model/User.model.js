@@ -31,6 +31,8 @@ export const userSchema = new Schema(
     password: {
       type: String,
     },
+    
+    
     provider: {
       type: String,
       enum: Object.values(providerTypes),
@@ -43,6 +45,7 @@ export const userSchema = new Schema(
     },
     DOB: Date,
     phoneNumber: String,
+    image: String,
     role: {
       type: String,
       enum: Object.values(roleTypes),
@@ -64,8 +67,10 @@ export const userSchema = new Schema(
         code: { type: String },
         type: { type: String, enum: Object.values(otpTypes), default: otpTypes.confirmEmail },
         expiresIn: { type: Date },
+        attempts: { type: Number, default: 0 },
       },
     ],
+    
   },
   { timestamps: true }
 );

@@ -1,0 +1,99 @@
+import mongoose, { Schema, model } from "mongoose";
+
+export const allowedIcons = ["Ship", "Landmark", "Mountain", "Palette", "CloudSun", "ChefHat"];
+
+export const allowedCategories = ["nile", "heritage", "desert", "cultural", "balloon", "culinary"];
+export const activityPricingTypes = ["per_person", "per_group"];
+
+export const activitySchema = new Schema(
+  {
+    category: {
+      type: String,
+      required: true,
+      enum: allowedCategories,
+      trim: true,
+    },
+    label: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 2,
+      maxlength: 100,
+    },
+    title: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      minlength: 2,
+      maxlength: 200,
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    image: {
+      secure_url: String,
+      public_id: String,
+    },
+    attacthments: [{ secure_url: String, public_id: String }],
+    stats: [
+      {
+        value: { type: String, required: true },
+        label: { type: String, required: true },
+      },
+    ],
+    highlights: [{ type: String }],
+    icon: {
+      type: String,
+      enum: allowedIcons,
+    },
+    location: {
+      type: String,
+      trim: true,
+      maxlength: 150,
+      default: "",
+    },
+    basePrice: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+    pricingType: {
+      type: String,
+      enum: activityPricingTypes,
+      default: "per_person",
+    },
+    durationMinutes: {
+      type: Number,
+      required: true,
+      min: 15,
+      default: 60,
+    },
+    defaultCapacity: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  },
+  { timestamps: true }
+);
+
+activitySchema.index({ title: "text", description: "text", label: "text" });
+
+activitySchema.set("toJSON", { virtuals: true });
+activitySchema.set("toObject", { virtuals: true });
+
+export const activityModel =
+  mongoose.models.Activity || model("Activity", activitySchema);

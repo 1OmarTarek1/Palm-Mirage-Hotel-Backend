@@ -8,8 +8,12 @@ export const create = async ({ model, data = {} } = {}) => {
 }
 
 ////find
-export const findAll = async ({ model, filter = {}, select = "", populate = [], skip = 0, limit = 1000 } = {}) => {
-    const decuments = await model.find(filter).select(select).populate(populate).skip(skip).limit(limit);
+export const findAll = async ({ model, filter = {}, select = "", populate = [], skip = 0, limit = 1000, sort = "" } = {}) => {
+    let query = model.find(filter).select(select).populate(populate).skip(skip).limit(limit);
+    if (sort && (typeof sort !== "string" || sort.trim())) {
+        query = query.sort(sort);
+    }
+    const decuments = await query;
     return decuments
 }
 export const findOne = async ({ model, filter = {}, select = "", populate = [] } = {}) => {
@@ -18,8 +22,12 @@ export const findOne = async ({ model, filter = {}, select = "", populate = [] }
 }
 
 // Update
-export const findOneAndUpdate = async ({ model, filter = {}, data = {}, options = {}, select = "", populate = [] } = {}) => {
-    const decument = await model.findOneAndUpdate(filter, data, options).select(select).populate(populate);
+export const findOneAndUpdate = async ({ model, filter = {}, data = {}, options = {}, select = "", populate = [] , sort= "" } = {}) => {
+    let query = model.findOneAndUpdate(filter, data, options).select(select).populate(populate);
+    if (sort && (typeof sort !== "string" || sort.trim())) {
+        query = query.sort(sort);
+    }
+    const decument = await query;
     return decument
 }
 export const findByIdAndUpdate = async ({ model, id = {}, data = {}, options = {}, select = "", populate = [] } = {}) => {

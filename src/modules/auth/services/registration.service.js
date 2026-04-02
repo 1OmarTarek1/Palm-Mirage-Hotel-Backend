@@ -19,7 +19,7 @@ console.log({ userName, country, email, password, phoneNumber });
   emailEvent.emit("sendConfirmEmail", { email });
   return successResponse({ res, status: 201, data: { user } });
 });
-
+// confirmEmail
 export const confirmEmail = asyncHandler(async (req, res, next) => {
   const { code, email } = req.body;
   const user = await dbService.findOne({ model: userModel, filter: { email } });
@@ -45,3 +45,4 @@ export const confirmEmail = asyncHandler(async (req, res, next) => {
 
   return successResponse({ res, status: 201, data: {} });
 });
+

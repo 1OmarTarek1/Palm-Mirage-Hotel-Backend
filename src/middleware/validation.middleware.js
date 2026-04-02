@@ -30,12 +30,13 @@ export const generalFields = {
   id: joi.string().custom(checkObjectId),
   fileobject,
   file: joi.object(fileobject),
+  
 };
-
+ 
 export const validation = (schema) => {
   return (req, res, next) => {
     const inputDate = { ...req.body, ...req.params, ...req.query };
-    if (req.file || req.files?.length) {
+    if (req.file || (req.files && Object.keys(req.files).length > 0)) {
       inputDate.file = req.file || req.files;
     }
 
