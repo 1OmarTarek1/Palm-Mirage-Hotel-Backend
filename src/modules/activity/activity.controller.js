@@ -42,7 +42,7 @@ router.patch(
   "/:id",
   authentication(),
   authorization([roleTypes.admin]),
-  uploadCloudFile().single("image"),
+  uploadCloudFile(fileValidationTypes.image).single("image"),
   validation(validators.updateActivity),
   activityService.updateActivity
 );

@@ -6,7 +6,15 @@ import { successResponse } from "../../../utils/response/success.response.js";
 
 // Create Booking
 export const createBooking = asyncHandler(async (req, res, next) => {
-  const { roomId, checkInDate, checkOutDate, guests } = req.body;
+  const {
+    roomId,
+    checkInDate,
+    checkOutDate,
+    guests,
+    paymentMethod,
+    paymentStatus,
+    specialRequests,
+  } = req.body;
 
   const checkIn = new Date(checkInDate);
   const checkOut = new Date(checkOutDate);
@@ -60,7 +68,9 @@ export const createBooking = asyncHandler(async (req, res, next) => {
       totalPrice,
       guests,
       status: "pending",
-      paymentStatus: "unpaid",
+      paymentStatus: paymentStatus || "unpaid",
+      paymentMethod,
+      specialRequests,
     },
   });
 
