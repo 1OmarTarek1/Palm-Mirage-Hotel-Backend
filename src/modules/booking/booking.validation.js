@@ -37,6 +37,10 @@ export const createBookingSchema = Joi.object({
     .valid("cash", "card", "online")
     .optional(),
 
+  paymentStatus: Joi.string()
+    .valid("unpaid", "paid")
+    .optional(),
+
   specialRequests: Joi.string()
     .max(500)
     .trim()

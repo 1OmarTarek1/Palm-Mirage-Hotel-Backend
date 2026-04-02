@@ -4,7 +4,7 @@ import { successResponse } from "../../../utils/response/success.response.js";
 
 export const createCheckoutSession = asyncHandler(async (req, res, next) => {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-  const { items } = req.body; // Expecting [{ name, price, quantity }]
+  const { items, successUrl, cancelUrl } = req.body; // Expecting [{ name, price, quantity }]
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
@@ -19,8 +19,8 @@ export const createCheckoutSession = asyncHandler(async (req, res, next) => {
       quantity: item.quantity,
     })),
     mode: "payment",
-    success_url: `${req.protocol}://${req.get("host")}/payment/success`,
-    cancel_url: `${req.protocol}://${req.get("host")}/payment/cancel`,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
   });
 
   return successResponse({ res, message: "Checkout session created", data: { url: session.url } });

@@ -8,4 +8,6 @@ export const createCheckoutSession = joi.object({
       quantity: joi.number().integer().positive().required(),
     })
   ).required(),
+  successUrl: joi.string().uri().required(),
+  cancelUrl: joi.string().uri().required(),
 }).required();

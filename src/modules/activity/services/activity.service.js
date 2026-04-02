@@ -171,15 +171,8 @@ export const updateActivity = asyncHandler(async (req, res, next) => {
     if (existing.image?.public_id) {
       await cloudinary.uploader.destroy(existing.image.public_id);
     }
-    const uploadResult = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { folder: `${process.env.APP_NAME}/activities` },
-        (error, result) => {
-          if (error) return reject(error);
-          resolve(result);
-        }
-      );
-      stream.end(req.file.buffer);
+    const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+      folder: `${process.env.APP_NAME}/activities`,
     });
     image = { secure_url: uploadResult.secure_url, public_id: uploadResult.public_id };
   }
