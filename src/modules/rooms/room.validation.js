@@ -14,6 +14,7 @@ const baseRoomFields = {
   capacity: Joi.number().min(1),
   description: Joi.string().allow(""),
   facilities: Joi.array().items(Joi.string().hex().length(24)),
+  amenities: Joi.array().items(Joi.string().hex().length(24)),
   roomImages: Joi.array().items(
     Joi.object({
       secure_url: Joi.string().uri().required(),

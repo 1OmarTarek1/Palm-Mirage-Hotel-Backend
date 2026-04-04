@@ -6,12 +6,14 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
 
     room: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Room",
       required: true,
+      index: true,
     },
 
     checkInDate: {
@@ -24,20 +26,33 @@ const bookingSchema = new mongoose.Schema(
       required: true,
     },
 
+    nights: {
+      type: Number,
+      min: 1,
+    },
+
+    pricePerNight: {
+      type: Number,
+      min: 0,
+    },
+
     totalPrice: {
       type: Number,
       required: true,
+      min: 0,
     },
 
     guests: {
       type: Number,
       default: 1,
+      min: 1,
     },
 
     status: {
       type: String,
-      enum: ["pending", "confirmed", "cancelled", "completed"],
+      enum: ["pending", "confirmed", "checked-in", "completed", "cancelled", "no-show"],
       default: "pending",
+      index: true,
     },
 
     paymentStatus: {
@@ -53,6 +68,17 @@ const bookingSchema = new mongoose.Schema(
 
     specialRequests: {
       type: String,
+      trim: true,
+    },
+
+    cancellationReason: {
+      type: String,
+      trim: true,
+    },
+
+    bookedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   { timestamps: true },

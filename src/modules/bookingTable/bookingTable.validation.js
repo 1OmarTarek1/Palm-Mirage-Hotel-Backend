@@ -21,3 +21,8 @@ export const getAvailableTables = Joi.object({
 export const cancelBooking = Joi.object({
   number: Joi.number().required(),
 }).required();
+
+export const updateBookingStatus = Joi.object({
+  id: Joi.string().hex().length(24).required(),
+  status: Joi.string().valid('pending', 'confirmed', 'cancelled', 'completed').required(),
+}).required();

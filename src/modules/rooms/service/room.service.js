@@ -73,6 +73,11 @@ export const getAllRooms = asyncHandler(async (req, res, next) => {
         model:  "Facility",        
         select: "name icon -_id",  
       },
+      {
+        path: "amenities",
+        model: "RoomAmenity",
+        select: "name icon description",
+      },
     ],
   });
  
@@ -92,7 +97,7 @@ export const getRoomsWithOffers = asyncHandler(async (req, res, next) => {
     size: Number(limit),
     model: RoomModel,
     filter: { hasOffer: true, isAvailable: true },
-    populate: ["facilities"],
+    populate: ["facilities", "amenities"],
     sort: "-discount",
   });
 
@@ -115,7 +120,7 @@ export const getTopRatedRooms = asyncHandler(async (req, res, next) => {
       isAvailable: true,
       rating: { $gt: 0 },
     },
-    populate: ["facilities"],
+    populate: ["facilities", "amenities"],
     sort: "-rating",
   });
 
@@ -133,7 +138,7 @@ export const getRoomById = asyncHandler(async (req, res, next) => {
   const room = await dbService.findOne({
     model: RoomModel,
     filter: { _id: id },
-    populate: [{ path: "facilities" }],
+    populate: [{ path: "facilities" }, { path: "amenities" }],
   });
 
   if (!room) {
@@ -232,7 +237,7 @@ export const updateRoomById = asyncHandler(async (req, res, next) => {
     id,
     data: updates,
     options: { new: true, runValidators: true },
-    populate: ["facilities"],
+    populate: ["facilities", "amenities"],
   });
 
   return successResponse({

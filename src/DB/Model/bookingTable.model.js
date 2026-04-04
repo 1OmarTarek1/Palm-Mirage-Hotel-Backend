@@ -1,6 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 
-const bookingSchema = new Schema(
+const restaurantBookingSchema = new Schema(
   {
     tableNumber: {
       type: Number,
@@ -34,12 +34,17 @@ const bookingSchema = new Schema(
       default: 'pending',
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    collection: 'bookings',
+  }
 );
 
-bookingSchema.index({ tableNumber: 1, startTime: 1, endTime: 1 });
-bookingSchema.index({ user: 1 });
+restaurantBookingSchema.index({ tableNumber: 1, startTime: 1, endTime: 1 });
+restaurantBookingSchema.index({ user: 1 });
 
-const Booking =mongoose.models.Booking || mongoose.model('Booking', bookingSchema);
+const RestaurantBookingModel =
+  mongoose.models.RestaurantBooking ||
+  mongoose.model('RestaurantBooking', restaurantBookingSchema);
 
-export default Booking;
+export default RestaurantBookingModel;

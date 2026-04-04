@@ -177,3 +177,60 @@ export const cancelBooking = asyncHandler(async (req, res, next) => {
 
     return successResponse({ res, status: 200, message: "Booking cancelled successfully", data: { cancelledBooking: booking } });
 });
+
+// GET ALL RESTAURANT BOOKINGS
+export const getAllBookings = asyncHandler(async (req, res) => {
+    const bookings = await dbService.findAll({
+        model: BookingModel,
+        populate: [{ path: 'user', select: 'userName email phoneNumber' }],
+        sort: '-createdAt',
+    });
+
+    return successResponse({
+        res,
+        status: 200,
+        message: "Restaurant bookings retrieved successfully",
+        data: { bookings },
+    });
+});
+
+// UPDATE RESTAURANT BOOKING STATUS
+export const updateBookingStatus = asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        return next(new Error("Invalid booking id"), { cause: 400 });
+    }
+
+    const booking = await dbService.findOne({
+        model: BookingModel,
+        filter: { _id: id },
+    });
+
+    if (!booking) {
+        return next(new Error("Booking not found"), { cause: 404 });
+    }
+
+    booking.status = status;
+
+    if (status === 'cancelled' && booking.tableNumber) {
+        await booking.save();
+        await promoteWaitlist(booking.tableNumber, booking.startTime, booking.endTime);
+    } else {
+        await booking.save();
+    }
+
+    const updatedBooking = await dbService.findOne({
+        model: BookingModel,
+        filter: { _id: booking._id },
+        populate: [{ path: 'user', select: 'userName email phoneNumber' }],
+    });
+
+    return successResponse({
+        res,
+        status: 200,
+        message: "Restaurant booking updated successfully",
+        data: { booking: updatedBooking },
+    });
+});

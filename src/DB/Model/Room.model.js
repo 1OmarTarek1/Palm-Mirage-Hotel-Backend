@@ -55,6 +55,13 @@ export const RoomSchema = new Schema(
       },
     ],
 
+    amenities: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "RoomAmenity",
+      },
+    ],
+
     roomImages: [
       {
         secure_url: { type: String },

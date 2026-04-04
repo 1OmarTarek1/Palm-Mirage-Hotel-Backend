@@ -85,7 +85,7 @@ export const getAllBookingsSchema = Joi.object({
   size: Joi.number().min(1).max(100).default(10),
 
   status: Joi.string()
-    .valid("pending", "confirmed", "cancelled", "completed")
+    .valid("pending", "confirmed", "checked-in", "completed", "cancelled", "no-show")
     .optional(),
 
   paymentStatus: Joi.string()

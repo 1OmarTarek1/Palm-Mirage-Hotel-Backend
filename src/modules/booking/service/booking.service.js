@@ -87,7 +87,7 @@ export const getMyBookings = asyncHandler(async (req, res) => {
   const bookings = await dbService.findAll({
     model: UserBooking,
     filter: { user: req.user._id },
-    populate: [{ path: "room", select: "roomName price roomImages" }],
+    populate: [{ path: "room", select: "roomName roomNumber roomType price roomImages" }],
     sort: "-createdAt",
   });
 
@@ -106,8 +106,8 @@ export const getBookingById = asyncHandler(async (req, res, next) => {
     model: UserBooking,
     filter: { _id: id },
     populate: [
-      { path: "room", select: "roomName price roomImages" },
-      { path: "user", select: "username email" },
+      { path: "room", select: "roomName roomNumber roomType price roomImages" },
+      { path: "user", select: "userName email" },
     ],
   });
 
@@ -197,8 +197,8 @@ export const getAllBookings = asyncHandler(async (req, res) => {
   const bookings = await dbService.findAll({
     model: UserBooking,
     populate: [
-      { path: "room", select: "roomName price" },
-      { path: "user", select: "username email" },
+      { path: "room", select: "roomName roomNumber roomType price roomImages" },
+      { path: "user", select: "userName email" },
     ],
     sort: "-createdAt",
   });
