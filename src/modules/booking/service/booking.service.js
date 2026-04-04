@@ -3,13 +3,12 @@ import * as dbService from "../../../DB/db.service.js";
 import { UserBooking } from "../../../DB/Model/UserBooking.model.js";
 import { RoomModel } from "../../../DB/Model/Room.model.js";
 import { successResponse } from "../../../utils/response/success.response.js";
-
-const normalizeDateOnly = (value) => {
-  const date = value instanceof Date ? value : new Date(value);
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-  );
-};
+import {
+  dateRangesOverlap,
+  getUnavailableRangesForRoom,
+  parseBookingWindow,
+  prepareRoomBookingQuote,
+} from "./booking.helpers.js";
 
 // Create Booking
 export const createBooking = asyncHandler(async (req, res, next) => {
@@ -19,73 +18,30 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     checkOutDate,
     guests,
     paymentMethod,
-    paymentStatus,
     specialRequests,
   } = req.body;
 
-  const checkIn = new Date(checkInDate);
-  const checkOut = new Date(checkOutDate);
-
-  if (checkIn >= checkOut) {
-    return next(new Error("Invalid booking dates", { cause: 400 }));
-  }
-
-  const room = await dbService.findOne({
-    model: RoomModel,
-    filter: { _id: roomId },
+  const { item } = await prepareRoomBookingQuote({
+    roomId,
+    checkInDate,
+    checkOutDate,
+    guests,
   });
-
-  if (!room) {
-    return next(new Error("Room not found", { cause: 404 }));
-  }
-
-  if (guests > room.capacity) {
-    return next(new Error("Guests exceed room capacity", { cause: 400 }));
-  }
-
-  const existingBookings = await dbService.findAll({
-    model: UserBooking,
-    filter: {
-      room: roomId,
-      status: { $in: ["pending", "confirmed"] },
-    },
-    select: "checkInDate checkOutDate",
-  });
-
-  const normalizedCheckIn = normalizeDateOnly(checkIn);
-  const normalizedCheckOut = normalizeDateOnly(checkOut);
-
-  const conflict = existingBookings.find((booking) => {
-    const bookingCheckIn = normalizeDateOnly(booking.checkInDate);
-    const bookingCheckOut = normalizeDateOnly(booking.checkOutDate);
-
-    return bookingCheckIn < normalizedCheckOut && bookingCheckOut > normalizedCheckIn;
-  });
-
-  if (conflict) {
-    return next(
-      new Error("Room already booked for selected dates", { cause: 400 }),
-    );
-  }
-
-  const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
-  const pricePerNight = room.price - (room.discount || 0);
-  const totalPrice = nights * pricePerNight;
 
   const booking = await dbService.create({
     model: UserBooking,
     data: {
       user: req.user._id,
       room: roomId,
-      checkInDate: checkIn,
-      checkOutDate: checkOut,
-      nights,
-      pricePerNight,
-      totalPrice,
-      guests,
+      checkInDate: item.checkInDate,
+      checkOutDate: item.checkOutDate,
+      nights: item.nights,
+      pricePerNight: item.pricePerNight,
+      totalPrice: item.totalPrice,
+      guests: item.guests,
       status: "pending",
-      paymentStatus: paymentStatus || "unpaid",
-      paymentMethod,
+      paymentStatus: "unpaid",
+      paymentMethod: paymentMethod || "cash",
       specialRequests,
     },
   });
@@ -153,40 +109,22 @@ export const getRoomAvailability = asyncHandler(async (req, res, next) => {
     return next(new Error("Room not found", { cause: 404 }));
   }
 
-  const bookedRanges = await dbService.findAll({
-    model: UserBooking,
-    filter: {
-      room: roomId,
-      status: { $in: ["pending", "confirmed", "checked-in"] },
-    },
-    select: "checkInDate checkOutDate status",
-    sort: "checkInDate",
-  });
+  const blockedRanges = await getUnavailableRangesForRoom({ roomId });
 
-  let isBookable = true;
+  let isBookable = room.isAvailable;
 
   if (checkInDate && checkOutDate) {
-    const checkIn = new Date(checkInDate);
-    const checkOut = new Date(checkOutDate);
+    const parsedWindow = parseBookingWindow({ checkInDate, checkOutDate });
+    const hasConflict = blockedRanges.some((range) =>
+      dateRangesOverlap(
+        range.checkInDate,
+        range.checkOutDate,
+        parsedWindow.checkInDate,
+        parsedWindow.checkOutDate,
+      ),
+    );
 
-    if (!(checkIn < checkOut)) {
-      return next(new Error("Invalid availability date range", { cause: 400 }));
-    }
-
-    const normalizedCheckIn = normalizeDateOnly(checkIn);
-    const normalizedCheckOut = normalizeDateOnly(checkOut);
-
-    const hasConflict = bookedRanges.some((booking) => {
-      const bookingCheckIn = normalizeDateOnly(booking.checkInDate);
-      const bookingCheckOut = normalizeDateOnly(booking.checkOutDate);
-
-      return (
-        bookingCheckIn < normalizedCheckOut &&
-        bookingCheckOut > normalizedCheckIn
-      );
-    });
-
-    isBookable = !hasConflict;
+    isBookable = room.isAvailable && !hasConflict;
   }
 
   return successResponse({
@@ -199,10 +137,10 @@ export const getRoomAvailability = asyncHandler(async (req, res, next) => {
       isVisible: room.isAvailable,
       checkInTime: room.checkInTime,
       checkOutTime: room.checkOutTime,
-      bookedRanges: bookedRanges.map((booking) => ({
-        checkInDate: booking.checkInDate,
-        checkOutDate: booking.checkOutDate,
-        status: booking.status,
+      bookedRanges: blockedRanges.map((range) => ({
+        checkInDate: range.checkInDate,
+        checkOutDate: range.checkOutDate,
+        status: range.status,
       })),
     },
     message: "Room availability retrieved successfully",

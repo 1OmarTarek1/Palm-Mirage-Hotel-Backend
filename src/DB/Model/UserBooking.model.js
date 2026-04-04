@@ -16,6 +16,12 @@ const bookingSchema = new mongoose.Schema(
       index: true,
     },
 
+    checkoutSession: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PaymentCheckoutSession",
+      index: true,
+    },
+
     checkInDate: {
       type: Date,
       required: true,

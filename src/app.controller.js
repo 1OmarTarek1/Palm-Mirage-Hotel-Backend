@@ -10,11 +10,13 @@ import facilityController from './modules/facility/facility.controller.js';
 import roomAmenityController from './modules/roomAmenity/roomAmenity.controller.js';
 import bookingRoomController from './modules/booking/booking.controller.js';
 import paymentController from './modules/payment/payment.controller.js';
+import * as paymentService from './modules/payment/services/payment.service.js';
 import { globalErrorHandling } from './utils/response/error.response.js';
 import helmet from 'helmet';
 import bookingController from './modules/bookingTable/bookingTable.controller.js';
 import tableController from './modules/restaurantTable/restaurantTable.controller.js';
 import menuController from './modules/menu/menu.controller.js'
+import { allowOrigin } from './config/origins.js';
 
 const parseCookies = (cookieHeader = '') =>
   cookieHeader
@@ -32,26 +34,9 @@ const parseCookies = (cookieHeader = '') =>
     }, {});
 
 const bootstrap = (app, express) => {
-  const defaultOrigins = [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5173',
-  ];
-  const envOrigins = (process.env.ORAGIN || '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-  const whitelist = [...new Set([...defaultOrigins, ...envOrigins])];
-
   app.use(
     cors({
-      origin(origin, callback) {
-        if (!origin || whitelist.includes(origin)) {
-          return callback(null, origin || true);
-        }
-
-        return callback(new Error(`CORS blocked for origin: ${origin}`));
-      },
+      origin: allowOrigin,
       credentials: true,
     })
   );
@@ -60,6 +45,12 @@ const bootstrap = (app, express) => {
     req.cookies = parseCookies(req.headers.cookie);
     next();
   });
+
+  app.post(
+    "/payment/webhook",
+    express.raw({ type: "application/json" }),
+    paymentService.handleStripeWebhook
+  );
 
   app.use(express.json());
   app.use(helmet());
