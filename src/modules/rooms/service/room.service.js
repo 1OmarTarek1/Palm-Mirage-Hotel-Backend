@@ -49,7 +49,11 @@ export const getAllRooms = asyncHandler(async (req, res, next) => {
     limit,
   } = req.query;
  
-  let filter = { isAvailable: true };
+  let filter = {};
+
+  if (req.query.isAvailable !== undefined) {
+    filter.isAvailable = req.query.isAvailable === "true";
+  }
  
   if (roomType)   filter.roomType = roomType;
   if (capacity)   filter.capacity = { $gte: Number(capacity) };
@@ -96,7 +100,7 @@ export const getRoomsWithOffers = asyncHandler(async (req, res, next) => {
     page: Number(page),
     size: Number(limit),
     model: RoomModel,
-    filter: { hasOffer: true, isAvailable: true },
+    filter: { hasOffer: true },
     populate: ["facilities", "amenities"],
     sort: "-discount",
   });
@@ -117,7 +121,6 @@ export const getTopRatedRooms = asyncHandler(async (req, res, next) => {
     size: Number(limit),
     model: RoomModel,
     filter: {
-      isAvailable: true,
       rating: { $gt: 0 },
     },
     populate: ["facilities", "amenities"],

@@ -14,6 +14,13 @@ const adminAuth = [authentication(), authorization(roleTypes.admin)];
 
 // ---------------- User Routes ----------------
 
+// Public room availability
+bookingRouter.get(
+  "/availability/:roomId",
+  validation(bookingValidator.getRoomAvailabilitySchema),
+  bookingService.getRoomAvailability
+);
+
 // Get current user's bookings
 bookingRouter.get("/my-bookings", userAuth, bookingService.getMyBookings);
 

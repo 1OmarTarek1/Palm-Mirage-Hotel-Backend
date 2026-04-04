@@ -73,6 +73,13 @@ export const getBookingByIdSchema = Joi.object({
   id: objectId.required(),
 });
 
+// Public room availability
+export const getRoomAvailabilitySchema = Joi.object({
+  roomId: objectId.required(),
+  checkInDate: Joi.date().optional(),
+  checkOutDate: Joi.date().greater(Joi.ref("checkInDate")).optional(),
+});
+
 // Cancel Booking
 export const cancelBookingSchema = Joi.object({
   id: objectId.required(),

@@ -4,6 +4,13 @@ import { UserBooking } from "../../../DB/Model/UserBooking.model.js";
 import { RoomModel } from "../../../DB/Model/Room.model.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 
+const normalizeDateOnly = (value) => {
+  const date = value instanceof Date ? value : new Date(value);
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+};
+
 // Create Booking
 export const createBooking = asyncHandler(async (req, res, next) => {
   const {
@@ -25,25 +32,34 @@ export const createBooking = asyncHandler(async (req, res, next) => {
 
   const room = await dbService.findOne({
     model: RoomModel,
-    filter: { _id: roomId, isAvailable: true },
+    filter: { _id: roomId },
   });
 
   if (!room) {
-    return next(new Error("Room not available", { cause: 404 }));
+    return next(new Error("Room not found", { cause: 404 }));
   }
 
   if (guests > room.capacity) {
     return next(new Error("Guests exceed room capacity", { cause: 400 }));
   }
 
-  const conflict = await dbService.findOne({
+  const existingBookings = await dbService.findAll({
     model: UserBooking,
     filter: {
       room: roomId,
       status: { $in: ["pending", "confirmed"] },
-      checkInDate: { $lt: checkOut },
-      checkOutDate: { $gt: checkIn },
     },
+    select: "checkInDate checkOutDate",
+  });
+
+  const normalizedCheckIn = normalizeDateOnly(checkIn);
+  const normalizedCheckOut = normalizeDateOnly(checkOut);
+
+  const conflict = existingBookings.find((booking) => {
+    const bookingCheckIn = normalizeDateOnly(booking.checkInDate);
+    const bookingCheckOut = normalizeDateOnly(booking.checkOutDate);
+
+    return bookingCheckIn < normalizedCheckOut && bookingCheckOut > normalizedCheckIn;
   });
 
   if (conflict) {
@@ -119,6 +135,77 @@ export const getBookingById = asyncHandler(async (req, res, next) => {
     res,
     data: booking,
     message: "Booking retrieved successfully",
+  });
+});
+
+// Public room availability
+export const getRoomAvailability = asyncHandler(async (req, res, next) => {
+  const { roomId } = req.params;
+  const { checkInDate, checkOutDate } = req.query;
+
+  const room = await dbService.findOne({
+    model: RoomModel,
+    filter: { _id: roomId },
+    select: "capacity roomName roomNumber isAvailable checkInTime checkOutTime",
+  });
+
+  if (!room) {
+    return next(new Error("Room not found", { cause: 404 }));
+  }
+
+  const bookedRanges = await dbService.findAll({
+    model: UserBooking,
+    filter: {
+      room: roomId,
+      status: { $in: ["pending", "confirmed", "checked-in"] },
+    },
+    select: "checkInDate checkOutDate status",
+    sort: "checkInDate",
+  });
+
+  let isBookable = true;
+
+  if (checkInDate && checkOutDate) {
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkOutDate);
+
+    if (!(checkIn < checkOut)) {
+      return next(new Error("Invalid availability date range", { cause: 400 }));
+    }
+
+    const normalizedCheckIn = normalizeDateOnly(checkIn);
+    const normalizedCheckOut = normalizeDateOnly(checkOut);
+
+    const hasConflict = bookedRanges.some((booking) => {
+      const bookingCheckIn = normalizeDateOnly(booking.checkInDate);
+      const bookingCheckOut = normalizeDateOnly(booking.checkOutDate);
+
+      return (
+        bookingCheckIn < normalizedCheckOut &&
+        bookingCheckOut > normalizedCheckIn
+      );
+    });
+
+    isBookable = !hasConflict;
+  }
+
+  return successResponse({
+    res,
+    data: {
+      roomId,
+      roomName: room.roomName,
+      roomNumber: room.roomNumber,
+      isBookable,
+      isVisible: room.isAvailable,
+      checkInTime: room.checkInTime,
+      checkOutTime: room.checkOutTime,
+      bookedRanges: bookedRanges.map((booking) => ({
+        checkInDate: booking.checkInDate,
+        checkOutDate: booking.checkOutDate,
+        status: booking.status,
+      })),
+    },
+    message: "Room availability retrieved successfully",
   });
 });
 
