@@ -31,13 +31,23 @@ const checkoutExpiresInMinutes = Math.max(
   Number(process.env.STRIPE_CHECKOUT_EXPIRES_MINUTES || 30),
 );
 
+/**
+ * Stripe success/cancel URLs must land on the same site the guest used (e.g. Vite dev :5173 vs preview :4173).
+ * Prefer the browser Origin when it is allow-listed; only then fall back to CHECKOUT_BASE_URL.
+ */
 const resolveCheckoutBaseUrl = (req) => {
   const allowedOrigins = getAllowedOrigins();
   const requestOrigin = req.headers.origin?.trim();
   const configuredBaseUrl = process.env.CHECKOUT_BASE_URL?.trim();
-  const baseUrl =
-    configuredBaseUrl ||
-    (requestOrigin && allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0]);
+
+  let baseUrl = null;
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    baseUrl = requestOrigin;
+  } else if (configuredBaseUrl) {
+    baseUrl = configuredBaseUrl;
+  } else if (allowedOrigins.length > 0) {
+    baseUrl = allowedOrigins[0];
+  }
 
   if (!baseUrl) {
     throw new Error("Unable to resolve checkout redirect URL", { cause: 500 });

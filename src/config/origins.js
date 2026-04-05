@@ -2,6 +2,9 @@ const DEFAULT_ORIGINS = [
   "http://localhost:3000",
   "http://localhost:3001",
   "http://localhost:5173",
+  /** Vite `npm run preview` (production build locally) */
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
 ];
 
 export const getAllowedOrigins = () => {
