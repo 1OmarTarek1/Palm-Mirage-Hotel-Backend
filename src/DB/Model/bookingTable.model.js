@@ -33,6 +33,11 @@ const restaurantBookingSchema = new Schema(
       enum: ['pending', 'confirmed', 'cancelled', 'completed'],
       default: 'pending',
     },
+    paymentStatus: {
+      type: String,
+      enum: ['unpaid', 'paid', 'refunded'],
+      default: 'unpaid',
+    },
   },
   {
     timestamps: true,

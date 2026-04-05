@@ -1,3 +1,10 @@
+/**
+ * Full local dataset (users, rooms, menu, restaurant page images, activities, …).
+ * Run from Backend: `node scripts/seed-local-data.js` (requires DB_URL in src/config/.env.dev).
+ * Menu-only refresh (keeps tables & table bookings): `node scripts/seed-local-data.js --menu-only`
+ * Also backfills `paymentStatus` on restaurant bookings missing it (unpaid).
+ * Full seed does not wipe Table / bookings collections — re-runs upsert tables and skip duplicate bookings.
+ */
 import path from "node:path";
 import * as dotenv from "dotenv";
 import mongoose from "mongoose";
@@ -12,6 +19,7 @@ import { TableModel } from "../src/DB/Model/table.model.js";
 import TableBookingModel from "../src/DB/Model/bookingTable.model.js";
 import Category from "../src/DB/Model/Category.model.js";
 import { menuModel } from "../src/DB/Model/Menu.model.js";
+import { restaurantPageModel } from "../src/DB/Model/RestaurantPage.model.js";
 import { activityModel } from "../src/DB/Model/Activity.model.js";
 import { activityScheduleModel } from "../src/DB/Model/ActivitySchedule.model.js";
 import { activityBookingModel } from "../src/DB/Model/ActivityBooking.model.js";
@@ -29,6 +37,12 @@ const now = new Date();
 const dayMs = 24 * 60 * 60 * 1000;
 const hourMs = 60 * 60 * 1000;
 const u = (id, w = 1600, h = 1000) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&h=${h}&q=80`;
+/** Pexels — reliable CDN for menu item thumbnails */
+const px = (path) =>
+  `https://images.pexels.com/photos/${path}?auto=compress&cs=tinysrgb&w=900&h=720&fit=crop`;
+/** Pexels — wide hero / category images */
+const pc = (path, w = 1600, h = 1000) =>
+  `https://images.pexels.com/photos/${path}?auto=compress&cs=tinysrgb&w=${w}&h=${h}&fit=crop`;
 const face = (type, id) => `https://randomuser.me/api/portraits/${type}/${id}.jpg`;
 const addDays = (days, hour = 12, minute = 0) => {
   const date = new Date(now.getTime() + days * dayMs);
@@ -48,10 +62,10 @@ const roomImages = [
 ];
 
 const categoryImages = {
-  Appetizer: u("photo-1540189549336-e6e99c3679fe"),
-  Restaurant: u("photo-1555939594-58d7cb561ad1"),
-  Desserts: u("photo-1551024601-bec78aea704b"),
-  Drinks: u("photo-1513558161293-cdaf765ed2fd"),
+  Appetizer: pc("1640772/pexels-photo-1640772.jpeg"),
+  Restaurant: pc("262978/pexels-photo-262978.jpeg"),
+  Desserts: pc("45202/brownie-dessert-cake-sweet-45202.jpeg"),
+  Drinks: pc("1283219/pexels-photo-1283219.jpeg"),
 };
 
 const activityImages = {
@@ -69,9 +83,8 @@ async function resetCollections() {
     activityScheduleModel.deleteMany({}),
     activityModel.deleteMany({}),
     menuModel.deleteMany({}),
+    restaurantPageModel.deleteMany({}),
     Category.deleteMany({}),
-    TableBookingModel.deleteMany({}),
-    TableModel.deleteMany({}),
     UserBooking.deleteMany({}),
     RoomModel.deleteMany({}),
     FacilityModel.deleteMany({}),
@@ -201,30 +214,39 @@ async function seedRoomBookings(users, rooms) {
 }
 
 async function seedTables() {
-  return TableModel.create(
-    Array.from({ length: 16 }, (_, index) => ({
-      number: index + 1,
-      chairs: [2, 2, 4, 4, 4, 6, 6, 8][index % 8],
-    }))
-  );
+  const chairsByIndex = [2, 2, 4, 4, 4, 6, 6, 8];
+  for (let index = 0; index < 16; index++) {
+    const number = index + 1;
+    await TableModel.findOneAndUpdate(
+      { number },
+      { $set: { chairs: chairsByIndex[index % 8] } },
+      { upsert: true, new: true }
+    );
+  }
+  return TableModel.find().sort({ number: 1 });
 }
 
 async function seedTableBookings(users, tables) {
+  const existing = await TableBookingModel.countDocuments();
+  if (existing > 0) {
+    console.log("Skipping table booking seed (bookings already exist).");
+    return TableBookingModel.find();
+  }
   const defs = [
-    [1, 1, 1, 19, 2, 2, "confirmed"],
-    [2, 2, 1, 20, 2, 4, "confirmed"],
-    [3, 5, 2, 20, 2, 4, "confirmed"],
-    [4, 7, 2, 21, 2, 6, "pending"],
-    [5, 3, 3, 18, 2, 4, "completed"],
-    [6, 9, 3, 19, 2, 2, "confirmed"],
-    [7, 11, 4, 20, 2, 8, "confirmed"],
-    [8, 4, -2, 19, 2, 4, "completed"],
-    [9, 6, -1, 20, 2, 6, "cancelled"],
-    [10, 8, 5, 21, 2, 2, "pending"],
+    [1, 1, 1, 19, 2, 2, "confirmed", "paid"],
+    [2, 2, 1, 20, 2, 4, "confirmed", "paid"],
+    [3, 5, 2, 20, 2, 4, "confirmed", "unpaid"],
+    [4, 7, 2, 21, 2, 6, "pending", "unpaid"],
+    [5, 3, 3, 18, 2, 4, "completed", "paid"],
+    [6, 9, 3, 19, 2, 2, "confirmed", "unpaid"],
+    [7, 11, 4, 20, 2, 8, "confirmed", "paid"],
+    [8, 4, -2, 19, 2, 4, "completed", "paid"],
+    [9, 6, -1, 20, 2, 6, "cancelled", "unpaid"],
+    [10, 8, 5, 21, 2, 2, "pending", "unpaid"],
   ];
 
   return TableBookingModel.create(
-    defs.map(([userIndex, tableIndex, dayOffset, hour, durationHours, guests, status]) => {
+    defs.map(([userIndex, tableIndex, dayOffset, hour, durationHours, guests, status, paymentStatus]) => {
       const startTime = addDays(dayOffset, hour);
       return {
         tableNumber: status === "pending" ? null : tables[tableIndex].number,
@@ -233,6 +255,7 @@ async function seedTableBookings(users, tables) {
         endTime: addHours(startTime, durationHours),
         guests,
         status,
+        paymentStatus,
       };
     })
   );
@@ -250,27 +273,74 @@ async function seedCategories() {
 async function seedMenu(adminUser, categories) {
   const categoryMap = Object.fromEntries(categories.map((category) => [category.label, category]));
   const defs = [
-    ["Stuffed Vine Leaves", "Traditional vine leaves with herbed rice and lemon.", 145, "Appetizer", u("photo-1547592180-85f173990554")],
-    ["Fattoush Bowl", "Crisp greens, toasted pita, and pomegranate dressing.", 125, "Appetizer", u("photo-1543332164-6e82f355badc")],
-    ["Roasted Beet Burrata", "Roasted beetroot, burrata, citrus, and pistachio.", 165, "Appetizer", u("photo-1540189549336-e6e99c3679fe")],
-    ["Oriental Mezze Board", "Hummus, baba ghanoush, muhammara, olives, and bread.", 210, "Appetizer", u("photo-1473093295043-cdd812d0e601")],
-    ["Mixed Grill Platter", "Kofta, grilled chicken, lamb, and oriental rice.", 420, "Restaurant", u("photo-1555939594-58d7cb561ad1")],
-    ["Nile Sea Bass", "Pan-seared sea bass with lemon butter and greens.", 445, "Restaurant", u("photo-1544025162-d76694265947")],
-    ["Chicken Molokhia Rice", "Slow-cooked molokhia with oven-roasted chicken.", 295, "Restaurant", u("photo-1504674900247-0877df9cc836")],
-    ["Beef Tenderloin Medallions", "Tenderloin with pepper sauce and rosemary potatoes.", 560, "Restaurant", u("photo-1467003909585-2f8a72700288")],
-    ["Herb Risotto Primavera", "Creamy risotto with vegetables and basil oil.", 280, "Restaurant", u("photo-1517248135467-4c7edcad34c4")],
-    ["Basbousa Delight", "Warm semolina cake with syrup and almonds.", 115, "Desserts", u("photo-1488477181946-6428a0291777")],
-    ["Pistachio Kunafa Nest", "Crisp kunafa layered with sweet cheese.", 145, "Desserts", u("photo-1551024601-bec78aea704b")],
-    ["Chocolate Date Fondant", "Soft-centered fondant finished with date caramel.", 165, "Desserts", u("photo-1519864600265-abb23847ef2c")],
-    ["Seasonal Fruit Pavlova", "Crisp meringue with vanilla cream and fruit.", 150, "Desserts", u("photo-1563729784474-d77dbb933a9e")],
-    ["Fresh Hibiscus Cooler", "Cold karkadeh infusion with mint and orange peel.", 85, "Drinks", u("photo-1513558161293-cdaf765ed2fd")],
-    ["Mango Passion Mocktail", "Mango puree, passion fruit, and lime zest.", 95, "Drinks", u("photo-1499636136210-6f4ee915583e")],
-    ["Palm Signature Latte", "House latte with cinnamon and cardamom.", 90, "Drinks", u("photo-1461823385004-d7660947a7c0")],
-    ["Sunset Citrus Spritz", "Orange, grapefruit, tonic, and rosemary.", 98, "Drinks", u("photo-1502741338009-cac2772e18bc")],
+    // Appetizers (15)
+    ["Stuffed Vine Leaves", "Herbed rice, lemon oil, and chilled yogurt sauce.", 145, "Appetizer", px("958545/pexels-photo-958545.jpeg")],
+    ["Fattoush Royale", "Crisp greens, sumac pita, pomegranate, and citrus dressing.", 125, "Appetizer", px("1640772/pexels-photo-1640772.jpeg")],
+    ["Beetroot Burrata", "Roasted beets, burrata, citrus segments, and pistachio.", 165, "Appetizer", px("769289/pexels-photo-769289.jpeg")],
+    ["Mezze Symphony", "Hummus, muhammara, baba ghanoush, olives, and warm bread.", 210, "Appetizer", px("704569/pexels-photo-704569.jpeg")],
+    ["Smoked Salmon Roses", "Crème fraîche, capers, rye crisps, and dill.", 185, "Appetizer", px("2085371/pexels-photo-2085371.jpeg")],
+    ["Charred Halloumi", "Wild honey, pistachio, and lemon zest.", 155, "Appetizer", px("1352274/pexels-photo-1352274.jpeg")],
+    ["Tuna Tataki", "Sesame crust, ponzu, avocado, and micro cilantro.", 195, "Appetizer", px("566345/pexels-photo-566345.jpeg")],
+    ["Crab Louis Cocktail", "Louis sauce, gem lettuce, and brown butter crumbs.", 225, "Appetizer", px("842571/pexels-photo-842571.jpeg")],
+    ["Wild Mushroom Crostini", "Truffle mascarpone, aged balsamic, and chives.", 135, "Appetizer", px("3611843/pexels-photo-3611843.jpeg")],
+    ["Yellowtail Crudo", "Yuzu, chili oil, coriander, and crispy shallots.", 175, "Appetizer", px("67468/pexels-photo-67468.jpeg")],
+    ["Burrata Caprese", "Heirloom tomatoes, basil oil, and aged balsamic.", 155, "Appetizer", px("1437267/pexels-photo-1437267.jpeg")],
+    ["Crispy Calamari", "Smoked paprika aioli, preserved lemon, and parsley.", 165, "Appetizer", px("842142/pexels-photo-842142.jpeg")],
+    ["Wagyu Beef Tartare", "Quail egg, cornichon, capers, and toasted brioche.", 245, "Appetizer", px("2097090/pexels-photo-2097090.jpeg")],
+    ["Grilled Octopus", "Chickpea purée, chorizo oil, smoked paprika, and lemon.", 225, "Appetizer", px("1109197/pexels-photo-1109197.jpeg")],
+    ["Artichoke Barigoule", "White wine braised hearts, herbs, and olive tapenade.", 155, "Appetizer", px("1640772/pexels-photo-1640772.jpeg")],
+    // Restaurant / mains (15)
+    ["Mirage Mixed Grill", "Kofta, lamb chop, chicken skewer, and saffron rice.", 420, "Restaurant", px("2097090/pexels-photo-2097090.jpeg")],
+    ["Nile Sea Bass", "Pan-seared fillet, lemon butter, capers, and seasonal greens.", 445, "Restaurant", px("1109197/pexels-photo-1109197.jpeg")],
+    ["Slow-Braised Lamb Shank", "Rosemary jus, fondant potato, and glazed carrots.", 385, "Restaurant", px("725997/pexels-photo-725997.jpeg")],
+    ["Beef Tenderloin", "Peppercorn sauce, bone marrow butter, and pommes Anna.", 560, "Restaurant", px("3611843/pexels-photo-3611843.jpeg")],
+    ["Wild Mushroom Risotto", "Black truffle oil, aged Parmesan, and crispy sage.", 280, "Restaurant", px("704569/pexels-photo-704569.jpeg")],
+    ["Truffle Tagliatelle", "Fresh egg pasta, truffle butter, and pecorino.", 340, "Restaurant", px("3214164/pexels-photo-3214164.jpeg")],
+    ["Duck Breast à l’Orange", "Confit leg croquette, endive, and grand jus.", 395, "Restaurant", px("2085371/pexels-photo-2085371.jpeg")],
+    ["Herb-Crusted Rack of Lamb", "Ratatouille, red wine reduction, and mint oil.", 520, "Restaurant", px("566345/pexels-photo-566345.jpeg")],
+    ["Lobster Thermidor", "Cognac cream, gratinée, and butter lettuce.", 680, "Restaurant", px("842571/pexels-photo-842571.jpeg")],
+    ["Chicken Supreme", "Morel cream, wilted spinach, and pommes purée.", 265, "Restaurant", px("1352274/pexels-photo-1352274.jpeg")],
+    ["Oven-Roasted Branzino", "Fennel pollen, citrus beurre blanc, and samphire.", 355, "Restaurant", px("1109197/pexels-photo-1109197.jpeg")],
+    ["Vegetable Wellington", "Roasted roots, duxelles, puff pastry, and port jus.", 245, "Restaurant", px("1640772/pexels-photo-1640772.jpeg")],
+    ["Osso Buco Milanese", "Saffron risotto, gremolata, and marrow jus.", 365, "Restaurant", px("725997/pexels-photo-725997.jpeg")],
+    ["Pan-Seared Scallops", "Cauliflower purée, brown butter, capers, and chives.", 295, "Restaurant", px("842571/pexels-photo-842571.jpeg")],
+    ["Moroccan-Spiced Quail", "Preserved lemon, honey glaze, couscous, and harissa yogurt.", 315, "Restaurant", px("1352274/pexels-photo-1352274.jpeg")],
+    // Desserts (15)
+    ["Valrhona Fondant", "Warm center, praline crumble, and malted cream.", 165, "Desserts", px("45202/brownie-dessert-cake-sweet-45202.jpeg")],
+    ["Citrus Tart", "Meyer lemon curd, Italian meringue, and almond sablé.", 135, "Desserts", px("291528/pexels-photo-291528.jpeg")],
+    ["Basbousa Royale", "Orange blossom syrup, pistachio, and clotted cream.", 115, "Desserts", px("958545/pexels-photo-958545.jpeg")],
+    ["Pistachio Kunafa", "Crisp kadaif, sweet cheese, and rose syrup.", 145, "Desserts", px("769289/pexels-photo-769289.jpeg")],
+    ["Seasonal Pavlova", "Crisp meringue, Chantilly, and market berries.", 150, "Desserts", px("1437267/pexels-photo-1437267.jpeg")],
+    ["Arabic Coffee Profiteroles", "Cardamom pastry cream and date caramel.", 135, "Desserts", px("302899/pexels-photo-302899.jpeg")],
+    ["Lemon Basil Sorbet", "Palette cleanser with olive oil crumble.", 95, "Desserts", px("67468/pexels-photo-67468.jpeg")],
+    ["Dark Chocolate Soufflé", "Grand Marnier anglaise and cocoa nib.", 155, "Desserts", px("45202/brownie-dessert-cake-sweet-45202.jpeg")],
+    ["Tiramisu al Mirage", "Mascarpone, espresso soak, and cocoa dust.", 140, "Desserts", px("842142/pexels-photo-842142.jpeg")],
+    ["Raspberry Opera", "Joconde, buttercream, and glossy glaze.", 145, "Desserts", px("291528/pexels-photo-291528.jpeg")],
+    ["Baked Alaska", "Torched meringue, vanilla parfait, and berry coulis.", 160, "Desserts", px("958545/pexels-photo-958545.jpeg")],
+    ["Date Sticky Toffee", "Butterscotch sauce, pecan, and crème fraîche.", 125, "Desserts", px("769289/pexels-photo-769289.jpeg")],
+    ["Mahalabia Rose", "Milk pudding, rose water, pistachio, and edible petals.", 95, "Desserts", px("1437267/pexels-photo-1437267.jpeg")],
+    ["Salted Caramel Éclair", "Choux, vanilla diplomat, and glossy caramel glaze.", 125, "Desserts", px("842142/pexels-photo-842142.jpeg")],
+    ["Fig and Mascarpone Parfait", "Honeycomb, aged balsamic pearls, and mint.", 115, "Desserts", px("67468/pexels-photo-67468.jpeg")],
+    // Drinks (15)
+    ["Mirage Spritz", "Aperitif, prosecco, citrus, and rosemary.", 98, "Drinks", px("1283219/pexels-photo-1283219.jpeg")],
+    ["Sommelier’s Glass", "Rotating pour from our cellar list.", 85, "Drinks", px("1552639/pexels-photo-1552639.jpeg")],
+    ["Single-Origin Espresso", "Rotating microlot, double shot.", 45, "Drinks", px("302899/pexels-photo-302899.jpeg")],
+    ["Hibiscus Cooler", "Cold brew karkadeh, mint, and orange peel.", 75, "Drinks", px("1552639/pexels-photo-1552639.jpeg")],
+    ["Mango Passion Fizz", "Mango, passion fruit, lime, and soda.", 88, "Drinks", px("1283219/pexels-photo-1283219.jpeg")],
+    ["Palm Signature Latte", "Cardamom, cinnamon, and silky foam.", 72, "Drinks", px("302899/pexels-photo-302899.jpeg")],
+    ["Elderflower Collins", "Gin, elderflower, cucumber, tonic.", 110, "Drinks", px("1283219/pexels-photo-1283219.jpeg")],
+    ["Cold Brew Tonic", "Nitro cold brew, citrus oils, tonic.", 68, "Drinks", px("302899/pexels-photo-302899.jpeg")],
+    ["Negroni Mirage", "Gin, vermouth, bitter orange, smoked ice.", 115, "Drinks", px("1552639/pexels-photo-1552639.jpeg")],
+    ["Virgin Paloma", "Grapefruit, agave, lime, and sparkling water.", 62, "Drinks", px("1283219/pexels-photo-1283219.jpeg")],
+    ["Spiced Chai Latte", "House spice blend, oat milk, honey.", 58, "Drinks", px("302899/pexels-photo-302899.jpeg")],
+    ["Mineral Water Still / Sparkling", "Imported 750ml.", 35, "Drinks", px("1552639/pexels-photo-1552639.jpeg")],
+    ["Fresh Orange & Carrot Juice", "Cold-pressed, no added sugar.", 55, "Drinks", px("67468/pexels-photo-67468.jpeg")],
+    ["Iced Moroccan Mint Tea", "Gunpowder green, fresh mint, light sweetness.", 48, "Drinks", px("1283219/pexels-photo-1283219.jpeg")],
+    ["Whisky Old Fashioned", "Single malt, demerara, orange bitters, smoked cherry.", 125, "Drinks", px("1552639/pexels-photo-1552639.jpeg")],
   ];
 
   return menuModel.create(
-    defs.map(([name, description, price, category, image], index) => ({
+    defs.map(([name, description, price, category, image]) => ({
       name,
       description,
       price,
@@ -278,9 +348,27 @@ async function seedMenu(adminUser, categories) {
       categoryIcon: categoryMap[category].icon,
       categoryHeroImg: categoryMap[category].heroImg,
       image,
-      available: index % 6 !== 1,
+      available: true,
       createdBy: adminUser._id,
     }))
+  );
+}
+
+async function seedRestaurantPage() {
+  await restaurantPageModel.findOneAndUpdate(
+    { key: "main" },
+    {
+      $set: {
+        key: "main",
+        heroImage: pc("262978/pexels-photo-262978.jpeg", 1920, 1080),
+        interiorImage: pc("1640772/pexels-photo-1640772.jpeg", 1400, 1800),
+        // Story column accents: food & tablescapes only (avoid portrait/lifestyle stock)
+        detailA: pc("704569/pexels-photo-704569.jpeg", 1200, 1500),
+        detailB: pc("958545/pexels-photo-958545.jpeg", 1200, 1500),
+        diningImage: pc("1109197/pexels-photo-1109197.jpeg", 1400, 1750),
+      },
+    },
+    { upsert: true, new: true }
   );
 }
 
@@ -409,6 +497,41 @@ async function seedActivityBookings(users, activities, schedules) {
   );
 }
 
+/** Ensures every document in `bookings` has a valid paymentStatus (legacy rows). */
+async function backfillRestaurantBookingPaymentStatus() {
+  const result = await TableBookingModel.updateMany(
+    {
+      $or: [{ paymentStatus: { $exists: false } }, { paymentStatus: null }],
+    },
+    { $set: { paymentStatus: "unpaid" } }
+  );
+  if (result.modifiedCount > 0) {
+    console.log(`Backfill: set paymentStatus=unpaid on ${result.modifiedCount} restaurant booking(s).`);
+  }
+}
+
+async function runMenuOnly() {
+  if (!dbUrl) {
+    throw new Error("DB_URL is missing in src/config/.env.dev");
+  }
+  await mongoose.connect(dbUrl);
+  console.log(`Connected to ${dbUrl}`);
+  await backfillRestaurantBookingPaymentStatus();
+  console.log("Menu-only: clearing Menu, Categories, RestaurantPage (tables & bookings unchanged).");
+  await menuModel.deleteMany({});
+  await Category.deleteMany({});
+  await restaurantPageModel.deleteMany({});
+  const admin = await userModel.findOne({ role: roleTypes.admin });
+  if (!admin) {
+    throw new Error("No admin user in DB. Run full seed once: node scripts/seed-local-data.js");
+  }
+  const categories = await seedCategories();
+  const menuItems = await seedMenu(admin, categories);
+  await seedRestaurantPage();
+  console.log("Menu-only seed completed.");
+  console.log(JSON.stringify({ categories: categories.length, menuItems: menuItems.length }, null, 2));
+}
+
 async function main() {
   if (!dbUrl) {
     throw new Error("DB_URL is missing in src/config/.env.dev");
@@ -428,9 +551,12 @@ async function main() {
   const tableBookings = await seedTableBookings(users, tables);
   const categories = await seedCategories();
   const menuItems = await seedMenu(users[0], categories);
+  await seedRestaurantPage();
   const activities = await seedActivities(users[0]);
   const schedules = await seedActivitySchedules(users[0], activities);
   const activityBookings = await seedActivityBookings(users, activities, schedules);
+
+  await backfillRestaurantBookingPaymentStatus();
 
   console.log("Large local seed completed successfully.");
   console.log(JSON.stringify({
@@ -450,7 +576,9 @@ async function main() {
   }, null, 2));
 }
 
-main()
+const menuOnly = process.argv.includes("--menu-only");
+
+(menuOnly ? runMenuOnly() : main())
   .catch((error) => {
     console.error("Seed failed:", error.message);
     process.exitCode = 1;

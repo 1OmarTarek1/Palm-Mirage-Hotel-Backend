@@ -2,18 +2,29 @@ import joi from "joi";
 import { generalFields } from "../../middleware/validation.middleware.js";
 import { allowedCategories } from "../../DB/Model/Menu.model.js";
 
+/** Multer file shapes vary by storage; allow extras (e.g. buffer, stream) so PATCH uploads don't 400. */
+const multerFileSchema = joi
+  .object({
+    fieldname: joi.string(),
+    originalname: joi.string(),
+    mimetype: joi.string(),
+    path: joi.string().allow(""),
+    size: joi.number().optional(),
+  })
+  .unknown(true);
+
 const baseSchema = {
-  name: joi.string().min(2).max(40).trim(),
+  name: joi.string().min(2).max(200).trim(),
   description: joi.string().trim().allow(""),
   price: joi.number().min(0),
   category: joi.string().valid(...allowedCategories),
-  categoryIcon: joi.string().trim(),
+  categoryIcon: joi.string().trim().max(80).allow(""),
   available: joi.boolean(),
 
   file: joi
     .object({
-      image: joi.array().items(generalFields.file).max(1).optional(),
-      categoryHeroImg: joi.array().items(generalFields.file).max(1).optional(),
+      image: joi.array().items(multerFileSchema).max(1).optional(),
+      categoryHeroImg: joi.array().items(multerFileSchema).max(1).optional(),
     })
     .optional(),
 };
@@ -33,10 +44,10 @@ export const createMenuItem = joi
     categoryIcon: baseSchema.categoryIcon.required(),
     file: joi
       .object({
-        image: joi.array().items(generalFields.file).max(1).required().messages({
+        image: joi.array().items(multerFileSchema).min(1).max(1).required().messages({
           "any.required": "Product image is required",
         }),
-        categoryHeroImg: joi.array().items(generalFields.file).max(1).optional(),
+        categoryHeroImg: joi.array().items(multerFileSchema).max(1).optional(),
       })
       .required(),
   })

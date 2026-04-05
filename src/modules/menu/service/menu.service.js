@@ -2,7 +2,18 @@ import { asyncHandler } from '../../../utils/response/error.response.js';
 import { successResponse } from '../../../utils/response/success.response.js';
 import * as dbService from '../../../DB/db.service.js';
 import { menuModel } from '../../../DB/Model/Menu.model.js';
+import { restaurantPageModel } from '../../../DB/Model/RestaurantPage.model.js';
 import cloud from '../../../utils/multer/cloudinary.js';
+
+const SECTION_ID_BY_LABEL = {
+  Appetizer: 'appetizer',
+  Restaurant: 'restaurant',
+  Desserts: 'desserts',
+  Drinks: 'drinks',
+};
+
+/** Public menu / restaurant page category order (must match Menu.model enum labels). */
+const MENU_CATEGORY_ORDER = ['Appetizer', 'Restaurant', 'Desserts', 'Drinks'];
 
 // 1. Create Menu Item
 export const createMenuItem = asyncHandler(async (req, res, next) => {
@@ -99,34 +110,82 @@ export const getAllMenuItems = asyncHandler(async (req, res, next) => {
 
 // 3. Get Menu (Grouped by Category for Frontend)
 export const getMenu = asyncHandler(async (req, res, next) => {
-  const items = await menuModel.find({ available: true });
+  const items = await menuModel.find({ available: true }).lean();
+
+  const byCategory = {};
+  for (const item of items) {
+    if (!byCategory[item.category]) byCategory[item.category] = [];
+    byCategory[item.category].push(item);
+  }
 
   const categoryMenuItems = {};
   const categoriesMap = {};
 
-  items.forEach((item) => {
-    if (!categoryMenuItems[item.category]) {
-      categoryMenuItems[item.category] = [];
-      categoriesMap[item.category] = {
-        label: item.category,
-        icon: item.categoryIcon,
-        heroImg: item.categoryHeroImg,
-      };
-    }
-    categoryMenuItems[item.category].push({
+  for (const cat of Object.keys(byCategory)) {
+    const catItems = byCategory[cat];
+    // Use the most recently updated item for section hero/icon so dashboard edits apply reliably
+    // (previously the first document in DB order won, which often stayed stale).
+    const representative = catItems.reduce((best, cur) => {
+      const tBest = new Date(best.updatedAt || 0).getTime();
+      const tCur = new Date(cur.updatedAt || 0).getTime();
+      return tCur >= tBest ? cur : best;
+    });
+
+    categoriesMap[cat] = {
+      label: cat,
+      sectionId: SECTION_ID_BY_LABEL[cat] ?? cat.toLowerCase(),
+      icon: representative.categoryIcon,
+      heroImg: representative.categoryHeroImg,
+    };
+    categoryMenuItems[cat] = catItems.map((item) => ({
       id: item._id,
       name: item.name,
       description: item.description,
       price: item.price,
       image: item.image,
-    });
-  });
+    }));
+  }
+
+  const categories = MENU_CATEGORY_ORDER.filter((label) => categoriesMap[label]).map(
+    (label) => categoriesMap[label]
+  );
 
   return successResponse({
     res,
-    data: { 
-      categories: Object.values(categoriesMap), 
-      categoryMenuItems 
+    data: {
+      categories,
+      categoryMenuItems,
+    },
+  });
+});
+
+// 3b. Marketing images for the public restaurant landing page (seeded document)
+const DEFAULT_RESTAURANT_PAGE_IMAGES = {
+  heroImage:
+    'https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&fit=crop',
+  interiorImage:
+    'https://images.pexels.com/photos/1640772/pexels-photo-1640772.jpeg?auto=compress&cs=tinysrgb&w=1400&h=1800&fit=crop',
+  detailA:
+    'https://images.pexels.com/photos/704569/pexels-photo-704569.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1500&fit=crop',
+  detailB:
+    'https://images.pexels.com/photos/958545/pexels-photo-958545.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1500&fit=crop',
+  diningImage:
+    'https://images.pexels.com/photos/1109197/pexels-photo-1109197.jpeg?auto=compress&cs=tinysrgb&w=1400&h=1750&fit=crop',
+};
+
+export const getRestaurantPage = asyncHandler(async (req, res) => {
+  const doc = await restaurantPageModel.findOne({ key: 'main' }).lean();
+  const src = doc ?? DEFAULT_RESTAURANT_PAGE_IMAGES;
+  return successResponse({
+    res,
+    data: {
+      images: {
+        hero: src.heroImage,
+        interior: src.interiorImage,
+        detailA: src.detailA,
+        detailB: src.detailB,
+        dining: src.diningImage,
+      },
     },
   });
 });
@@ -135,6 +194,17 @@ export const getMenu = asyncHandler(async (req, res, next) => {
 export const updateMenuItem = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const updateData = { ...req.body };
+
+  if (updateData.price !== undefined && updateData.price !== '') {
+    const parsed = Number(updateData.price);
+    if (!Number.isNaN(parsed)) updateData.price = parsed;
+  }
+  if (typeof updateData.available === 'string') {
+    updateData.available = updateData.available === 'true';
+  }
+  if (updateData.categoryIcon === '') {
+    delete updateData.categoryIcon;
+  }
 
   if (req.files?.image?.[0]) {
     const { secure_url } = await cloud.uploader.upload(req.files.image[0].path, {

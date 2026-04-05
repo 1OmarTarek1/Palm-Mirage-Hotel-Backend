@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const fileValidationTypes = {
-  image: ["image/jpg", "image/jpeg", "image/png", "image/gif"],
+  image: ["image/jpg", "image/jpeg", "image/png", "image/gif", "image/webp"],
 };
 // uploadDiskFile
 export const uploadDiskFile = (customPath = "general", fileValidation = []) => {

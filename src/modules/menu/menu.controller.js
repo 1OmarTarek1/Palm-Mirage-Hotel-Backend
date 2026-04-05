@@ -19,6 +19,10 @@ router.get('/menu-grouped',
     menuService.getMenu
 );
 
+router.get('/restaurant-page',
+    menuService.getRestaurantPage
+);
+
 // router.get('getById/:id', 
 //     validation(validators.paramId), 
 //     menuService.getMenuItemById

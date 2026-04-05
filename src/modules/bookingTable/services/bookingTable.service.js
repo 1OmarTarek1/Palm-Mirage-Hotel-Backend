@@ -17,6 +17,11 @@ const normalizeRestaurantBooking = (booking) => {
         return null;
     }
 
+    const paymentStatus =
+        item.paymentStatus === 'paid' || item.paymentStatus === 'refunded' || item.paymentStatus === 'unpaid'
+            ? item.paymentStatus
+            : 'unpaid';
+
     return {
         ...item,
         user: item.user
@@ -27,6 +32,7 @@ const normalizeRestaurantBooking = (booking) => {
                 phoneNumber: item.user.phoneNumber,
             }
             : null,
+        paymentStatus,
     };
 };
 
@@ -87,6 +93,7 @@ export const createBooking = asyncHandler(async (req, res, next) => {
             endTime,
             guests,
             status: 'pending',
+            paymentStatus: 'unpaid',
         };
         const waitlistBooking = await dbService.create({ model: BookingModel, data: waitlistData });
         emitBookingRealtimeUpdate({
@@ -124,6 +131,7 @@ export const createBooking = asyncHandler(async (req, res, next) => {
         endTime,
         guests,
         status: 'confirmed',
+        paymentStatus: 'unpaid',
     };
     const booking = await dbService.create({ model: BookingModel, data: bookingData });
 
@@ -286,6 +294,17 @@ export const cancelMyBooking = asyncHandler(async (req, res, next) => {
 
     if (booking.status === 'completed') {
         return next(new Error("Completed bookings cannot be cancelled"), { cause: 400 });
+    }
+
+    if (booking.paymentStatus === 'paid' || booking.paymentStatus === 'refunded') {
+        return next(
+            new Error(
+                booking.paymentStatus === 'paid'
+                    ? "Paid bookings cannot be cancelled from your account."
+                    : "This booking cannot be cancelled online."
+            ),
+            { cause: 400 }
+        );
     }
 
     if (booking.endTime < new Date()) {
