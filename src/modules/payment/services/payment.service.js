@@ -11,6 +11,18 @@ import { getAllowedOrigins } from "../../../config/origins.js";
 import { UserBooking } from "../../../DB/Model/UserBooking.model.js";
 import { emitSocketEvent } from "../../../socket/index.js";
 import { emitBookingRealtimeUpdate } from "../../../socket/bookingRealtime.js";
+import { persistFromCheckoutSessionDoc } from "../../notification/notification.service.js";
+import { appendBookingAudit } from "../../../utils/bookingAuditLog.util.js";
+import {
+  fulfillActivityBookingAfterStripe,
+  cancelActivityBookingAwaitingPayment,
+} from "../../activityBooking/services/activityBooking.service.js";
+import {
+  fulfillRestaurantBookingAfterStripe,
+  cancelRestaurantBookingAwaitingPayment,
+} from "../../bookingTable/services/bookingTable.service.js";
+import { activityBookingModel } from "../../../DB/Model/ActivityBooking.model.js";
+import BookingTableModel from "../../../DB/Model/bookingTable.model.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const checkoutCurrency = (process.env.STRIPE_CURRENCY || "usd").toLowerCase();
@@ -19,7 +31,7 @@ const checkoutExpiresInMinutes = Math.max(
   Number(process.env.STRIPE_CHECKOUT_EXPIRES_MINUTES || 30),
 );
 
-const buildCheckoutUrls = (req) => {
+const resolveCheckoutBaseUrl = (req) => {
   const allowedOrigins = getAllowedOrigins();
   const requestOrigin = req.headers.origin?.trim();
   const configuredBaseUrl = process.env.CHECKOUT_BASE_URL?.trim();
@@ -31,7 +43,11 @@ const buildCheckoutUrls = (req) => {
     throw new Error("Unable to resolve checkout redirect URL", { cause: 500 });
   }
 
-  const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  return baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+};
+
+const buildCheckoutUrls = (req) => {
+  const normalizedBaseUrl = resolveCheckoutBaseUrl(req);
   const successUrl = `${normalizedBaseUrl}/cart/checkout?payment=success&method=card&session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = `${normalizedBaseUrl}/cart/checkout?payment=cancel&method=card`;
 
@@ -39,6 +55,20 @@ const buildCheckoutUrls = (req) => {
     successUrl,
     cancelUrl,
   };
+};
+
+const buildActivityCheckoutUrls = (req) => {
+  const normalizedBaseUrl = resolveCheckoutBaseUrl(req);
+  const successUrl = `${normalizedBaseUrl}/activities?payment=success&session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = `${normalizedBaseUrl}/activities?payment=cancel`;
+  return { successUrl, cancelUrl };
+};
+
+const buildRestaurantCheckoutUrls = (req) => {
+  const normalizedBaseUrl = resolveCheckoutBaseUrl(req);
+  const successUrl = `${normalizedBaseUrl}/services/restaurant?payment=success&session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = `${normalizedBaseUrl}/services/restaurant?payment=cancel`;
+  return { successUrl, cancelUrl };
 };
 
 const buildStripeLineItem = (item) => ({
@@ -52,6 +82,17 @@ const buildStripeLineItem = (item) => ({
   quantity: 1,
 });
 
+const buildStripePayLineItem = (item) => ({
+  price_data: {
+    currency: checkoutCurrency,
+    product_data: {
+      name: item.name,
+    },
+    unit_amount: Math.round(item.totalPrice * 100),
+  },
+  quantity: item.quantity || 1,
+});
+
 const emitCheckoutState = (checkoutSessionDoc) => {
   const payload = {
     checkoutId: checkoutSessionDoc._id.toString(),
@@ -62,6 +103,7 @@ const emitCheckoutState = (checkoutSessionDoc) => {
     fulfilledAt: checkoutSessionDoc.fulfilledAt,
     amountTotal: checkoutSessionDoc.amountTotal,
     currency: checkoutSessionDoc.currency,
+    kind: checkoutSessionDoc.kind || "room",
   };
 
   emitSocketEvent({
@@ -74,6 +116,10 @@ const emitCheckoutState = (checkoutSessionDoc) => {
     room: "role:admin",
     event: "dashboard.payment.updated",
     payload,
+  });
+
+  void persistFromCheckoutSessionDoc(checkoutSessionDoc, payload).catch((err) => {
+    console.error("[notifications] persist checkout failed:", err?.message || err);
   });
 };
 
@@ -116,32 +162,7 @@ const markCheckoutAsOpen = async (checkoutSessionDoc, stripeSession) => {
   emitCheckoutState(checkoutSessionDoc);
 };
 
-const finalizePaidCheckout = async (stripeSession) => {
-  const checkoutSessionDoc = await findCheckoutSessionRecord({
-    checkoutId: stripeSession.metadata?.checkoutId || stripeSession.client_reference_id,
-    stripeSessionId: stripeSession.id,
-    stripePaymentIntentId:
-      typeof stripeSession.payment_intent === "string" ? stripeSession.payment_intent : undefined,
-  });
-
-  if (!checkoutSessionDoc) {
-    throw new Error("Checkout session record not found", { cause: 404 });
-  }
-
-  checkoutSessionDoc.stripeSessionId = stripeSession.id;
-  checkoutSessionDoc.stripeSessionUrl = stripeSession.url || checkoutSessionDoc.stripeSessionUrl;
-  checkoutSessionDoc.stripePaymentIntentId =
-    typeof stripeSession.payment_intent === "string" ? stripeSession.payment_intent : checkoutSessionDoc.stripePaymentIntentId;
-  checkoutSessionDoc.stripeCustomerId =
-    typeof stripeSession.customer === "string" ? stripeSession.customer : checkoutSessionDoc.stripeCustomerId;
-  checkoutSessionDoc.stripePaymentStatus = stripeSession.payment_status || checkoutSessionDoc.stripePaymentStatus;
-
-  if (checkoutSessionDoc.status === "fulfilled") {
-    await checkoutSessionDoc.save();
-    emitCheckoutState(checkoutSessionDoc);
-    return checkoutSessionDoc;
-  }
-
+const finalizeRoomPaidCheckout = async (checkoutSessionDoc, stripeSession) => {
   const existingBookings = await UserBooking.find({
     checkoutSession: checkoutSessionDoc._id,
   }).select("_id");
@@ -201,12 +222,24 @@ const finalizePaidCheckout = async (stripeSession) => {
   checkoutSessionDoc.failureReason = undefined;
   await checkoutSessionDoc.save();
   emitCheckoutState(checkoutSessionDoc);
+
+  await appendBookingAudit({
+    entityType: "payment_checkout",
+    entityId: checkoutSessionDoc._id,
+    action: "fulfilled_room",
+    actorId: null,
+    metadata: { bookingIds: createdBookings.map((b) => String(b._id)) },
+  });
+
   emitBookingRealtimeUpdate({
     resource: "room",
     action: "created",
     userId: checkoutSessionDoc.user,
     bookingIds: createdBookings.map((booking) => booking._id),
     source: "stripe_checkout",
+    title: "Room booking confirmed",
+    message: "Payment received — your room reservation is confirmed.",
+    severity: "success",
     metadata: {
       checkoutId: checkoutSessionDoc._id,
       paymentStatus: checkoutSessionDoc.stripePaymentStatus,
@@ -214,6 +247,140 @@ const finalizePaidCheckout = async (stripeSession) => {
   });
 
   return checkoutSessionDoc;
+};
+
+const finalizeActivityPaidCheckout = async (checkoutSessionDoc, stripeSession) => {
+  if (!checkoutSessionDoc.linkedEntityId) {
+    throw new Error("Activity checkout missing linked booking", { cause: 400 });
+  }
+
+  const result = await fulfillActivityBookingAfterStripe({
+    bookingId: checkoutSessionDoc.linkedEntityId,
+    checkoutSessionId: checkoutSessionDoc._id,
+  });
+
+  if (!result.ok) {
+    checkoutSessionDoc.status = "failed";
+    checkoutSessionDoc.failureReason = result.reason || "Could not confirm activity booking";
+    await checkoutSessionDoc.save();
+    emitCheckoutState(checkoutSessionDoc);
+    return checkoutSessionDoc;
+  }
+
+  checkoutSessionDoc.status = "fulfilled";
+  checkoutSessionDoc.fulfilledAt = new Date();
+  checkoutSessionDoc.failureReason = undefined;
+  await checkoutSessionDoc.save();
+  emitCheckoutState(checkoutSessionDoc);
+
+  await appendBookingAudit({
+    entityType: "payment_checkout",
+    entityId: checkoutSessionDoc._id,
+    action: "fulfilled_activity",
+    actorId: null,
+  });
+
+  emitBookingRealtimeUpdate({
+    resource: "activity",
+    action: "updated",
+    userId: result.userId,
+    bookingId: checkoutSessionDoc.linkedEntityId,
+    source: "stripe_checkout",
+    title: "Activity paid",
+    message: "Your activity booking is confirmed.",
+    severity: "success",
+  });
+
+  return checkoutSessionDoc;
+};
+
+const finalizeRestaurantPaidCheckout = async (checkoutSessionDoc, stripeSession) => {
+  if (!checkoutSessionDoc.linkedEntityId) {
+    throw new Error("Restaurant checkout missing linked booking", { cause: 400 });
+  }
+
+  const result = await fulfillRestaurantBookingAfterStripe({
+    bookingId: checkoutSessionDoc.linkedEntityId,
+    checkoutSessionId: checkoutSessionDoc._id,
+  });
+
+  if (!result.ok) {
+    checkoutSessionDoc.status = "failed";
+    checkoutSessionDoc.failureReason = result.reason || "Could not confirm restaurant booking";
+    await checkoutSessionDoc.save();
+    emitCheckoutState(checkoutSessionDoc);
+    return checkoutSessionDoc;
+  }
+
+  checkoutSessionDoc.status = "fulfilled";
+  checkoutSessionDoc.fulfilledAt = new Date();
+  checkoutSessionDoc.failureReason = undefined;
+  await checkoutSessionDoc.save();
+  emitCheckoutState(checkoutSessionDoc);
+
+  await appendBookingAudit({
+    entityType: "payment_checkout",
+    entityId: checkoutSessionDoc._id,
+    action: "fulfilled_restaurant",
+    actorId: null,
+  });
+
+  emitBookingRealtimeUpdate({
+    resource: "restaurant",
+    action: "updated",
+    userId: result.userId,
+    bookingId: checkoutSessionDoc.linkedEntityId,
+    source: "stripe_checkout",
+    title: "Restaurant order paid",
+    message: "Payment received — your restaurant booking is confirmed.",
+    severity: "success",
+  });
+
+  return checkoutSessionDoc;
+};
+
+const finalizePaidCheckout = async (stripeSession) => {
+  const checkoutSessionDoc = await findCheckoutSessionRecord({
+    checkoutId: stripeSession.metadata?.checkoutId || stripeSession.client_reference_id,
+    stripeSessionId: stripeSession.id,
+    stripePaymentIntentId:
+      typeof stripeSession.payment_intent === "string" ? stripeSession.payment_intent : undefined,
+  });
+
+  if (!checkoutSessionDoc) {
+    throw new Error("Checkout session record not found", { cause: 404 });
+  }
+
+  checkoutSessionDoc.stripeSessionId = stripeSession.id;
+  checkoutSessionDoc.stripeSessionUrl = stripeSession.url || checkoutSessionDoc.stripeSessionUrl;
+  checkoutSessionDoc.stripePaymentIntentId =
+    typeof stripeSession.payment_intent === "string"
+      ? stripeSession.payment_intent
+      : checkoutSessionDoc.stripePaymentIntentId;
+  checkoutSessionDoc.stripeCustomerId =
+    typeof stripeSession.customer === "string"
+      ? stripeSession.customer
+      : checkoutSessionDoc.stripeCustomerId;
+  checkoutSessionDoc.stripePaymentStatus =
+    stripeSession.payment_status || checkoutSessionDoc.stripePaymentStatus;
+
+  if (checkoutSessionDoc.status === "fulfilled") {
+    await checkoutSessionDoc.save();
+    emitCheckoutState(checkoutSessionDoc);
+    return checkoutSessionDoc;
+  }
+
+  const kind = checkoutSessionDoc.kind || "room";
+
+  if (kind === "activity") {
+    return finalizeActivityPaidCheckout(checkoutSessionDoc, stripeSession);
+  }
+
+  if (kind === "restaurant") {
+    return finalizeRestaurantPaidCheckout(checkoutSessionDoc, stripeSession);
+  }
+
+  return finalizeRoomPaidCheckout(checkoutSessionDoc, stripeSession);
 };
 
 const markCheckoutExpired = async (stripeSession) => {
@@ -226,8 +393,43 @@ const markCheckoutExpired = async (stripeSession) => {
     return checkoutSessionDoc;
   }
 
+  const kind = checkoutSessionDoc.kind || "room";
+
+  if (kind === "activity" && checkoutSessionDoc.linkedEntityId) {
+    const r = await cancelActivityBookingAwaitingPayment(checkoutSessionDoc.linkedEntityId);
+    if (r.ok && r.userId) {
+      emitBookingRealtimeUpdate({
+        resource: "activity",
+        action: "updated",
+        userId: r.userId,
+        bookingId: checkoutSessionDoc.linkedEntityId,
+        source: "stripe_checkout",
+        title: "Payment expired",
+        message: "Activity checkout expired — booking was cancelled.",
+        severity: "warning",
+      });
+    }
+  }
+
+  if (kind === "restaurant" && checkoutSessionDoc.linkedEntityId) {
+    const r = await cancelRestaurantBookingAwaitingPayment(checkoutSessionDoc.linkedEntityId);
+    if (r.ok && r.userId) {
+      emitBookingRealtimeUpdate({
+        resource: "restaurant",
+        action: "updated",
+        userId: r.userId,
+        bookingId: checkoutSessionDoc.linkedEntityId,
+        source: "stripe_checkout",
+        title: "Payment expired",
+        message: "Restaurant checkout expired — booking was cancelled.",
+        severity: "warning",
+      });
+    }
+  }
+
   checkoutSessionDoc.status = "expired";
-  checkoutSessionDoc.stripePaymentStatus = stripeSession.payment_status || checkoutSessionDoc.stripePaymentStatus;
+  checkoutSessionDoc.stripePaymentStatus =
+    stripeSession.payment_status || checkoutSessionDoc.stripePaymentStatus;
   checkoutSessionDoc.expiresAt = new Date();
   checkoutSessionDoc.failureReason = undefined;
   await checkoutSessionDoc.save();
@@ -262,9 +464,7 @@ const syncStripeSessionState = async (checkoutSessionDoc) => {
     return checkoutSessionDoc;
   }
 
-  const stripeSession = await stripe.checkout.sessions.retrieve(
-    checkoutSessionDoc.stripeSessionId,
-  );
+  const stripeSession = await stripe.checkout.sessions.retrieve(checkoutSessionDoc.stripeSessionId);
 
   checkoutSessionDoc.stripePaymentStatus =
     stripeSession.payment_status || checkoutSessionDoc.stripePaymentStatus;
@@ -319,6 +519,7 @@ export const createCheckoutSession = asyncHandler(async (req, res, next) => {
   const reusableSession = await PaymentCheckoutSession.findOne({
     user: req.user._id,
     sessionFingerprint,
+    kind: "room",
     status: "open",
     expiresAt: { $gt: new Date() },
     stripeSessionUrl: { $exists: true, $ne: null },
@@ -377,6 +578,7 @@ export const createCheckoutSession = asyncHandler(async (req, res, next) => {
   const contactEmail = String(customerEmail || req.user.email || "").trim().toLowerCase();
 
   const checkoutSessionDoc = await PaymentCheckoutSession.create({
+    kind: "room",
     user: req.user._id,
     sessionFingerprint,
     items: preparedItems,
@@ -406,11 +608,13 @@ export const createCheckoutSession = asyncHandler(async (req, res, next) => {
           checkoutId: checkoutSessionDoc._id.toString(),
           userId: req.user._id.toString(),
           bookingCount: String(preparedItems.length),
+          checkoutKind: "room",
         },
         payment_intent_data: {
           metadata: {
             checkoutId: checkoutSessionDoc._id.toString(),
             userId: req.user._id.toString(),
+            checkoutKind: "room",
           },
         },
       },
@@ -440,6 +644,267 @@ export const createCheckoutSession = asyncHandler(async (req, res, next) => {
   }
 });
 
+const createGenericPayCheckout = async ({
+  req,
+  kind,
+  linkedEntityId,
+  payItems,
+  amountTotal,
+  successUrl,
+  cancelUrl,
+  sessionFingerprint,
+  contactEmail,
+}) => {
+  const checkoutSessionDoc = await PaymentCheckoutSession.create({
+    kind,
+    linkedEntityId,
+    user: req.user._id,
+    sessionFingerprint,
+    payItems,
+    items: [],
+    currency: checkoutCurrency,
+    amountSubtotal: amountTotal,
+    amountTotal,
+    status: "creating",
+    contactEmail: contactEmail || undefined,
+    successUrl,
+    cancelUrl,
+  });
+
+  const expiresAt = Math.floor(Date.now() / 1000) + checkoutExpiresInMinutes * 60;
+  const session = await stripe.checkout.sessions.create(
+    {
+      payment_method_types: ["card"],
+      line_items: payItems.map(buildStripePayLineItem),
+      mode: "payment",
+      customer_email: contactEmail || undefined,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      expires_at: expiresAt,
+      client_reference_id: checkoutSessionDoc._id.toString(),
+      metadata: {
+        checkoutId: checkoutSessionDoc._id.toString(),
+        userId: req.user._id.toString(),
+        checkoutKind: kind,
+        linkedEntityId: linkedEntityId.toString(),
+      },
+      payment_intent_data: {
+        metadata: {
+          checkoutId: checkoutSessionDoc._id.toString(),
+          userId: req.user._id.toString(),
+          checkoutKind: kind,
+          linkedEntityId: linkedEntityId.toString(),
+        },
+      },
+    },
+    {
+      idempotencyKey: `checkout_session_${checkoutSessionDoc._id}`,
+    },
+  );
+  session.expires_at = session.expires_at || expiresAt;
+  await markCheckoutAsOpen(checkoutSessionDoc, session);
+  return checkoutSessionDoc;
+};
+
+export const createActivityCheckoutSession = asyncHandler(async (req, res, next) => {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return next(new Error("Stripe secret key is not configured", { cause: 500 }));
+  }
+
+  const { activityBookingId } = req.body;
+  if (!Types.ObjectId.isValid(activityBookingId)) {
+    return next(new Error("Invalid activity booking id", { cause: 400 }));
+  }
+
+  const booking = await activityBookingModel.findById(activityBookingId);
+  if (!booking || String(booking.user) !== String(req.user._id)) {
+    return next(new Error("Activity booking not found", { cause: 404 }));
+  }
+
+  if (booking.status !== "awaiting_payment") {
+    return next(new Error("This booking is not awaiting payment", { cause: 400 }));
+  }
+
+  const sessionFingerprint = `activity:${req.user._id}:${activityBookingId}`;
+  const reusableSession = await PaymentCheckoutSession.findOne({
+    user: req.user._id,
+    sessionFingerprint,
+    kind: "activity",
+    status: "open",
+    expiresAt: { $gt: new Date() },
+    stripeSessionUrl: { $exists: true, $ne: null },
+  }).sort({ createdAt: -1 });
+
+  if (reusableSession?.stripeSessionUrl) {
+    const syncedSession = await syncStripeSessionState(reusableSession);
+    if (syncedSession?.status === "open" && syncedSession?.stripeSessionUrl) {
+      return successResponse({
+        res,
+        message: "Checkout session reused",
+        data: {
+          url: syncedSession.stripeSessionUrl,
+          sessionId: syncedSession.stripeSessionId,
+          checkoutId: syncedSession._id,
+          expiresAt: syncedSession.expiresAt,
+          reused: true,
+        },
+      });
+    }
+  }
+
+  const payItems = [
+    {
+      name: `Activity booking (${booking.guests} guest${booking.guests > 1 ? "s" : ""})`,
+      totalPrice: booking.totalPrice,
+      quantity: 1,
+    },
+  ];
+  const amountTotal = Number(booking.totalPrice);
+
+  const { successUrl, cancelUrl } = buildActivityCheckoutUrls(req);
+  const contactEmail = String(req.user.email || "").trim().toLowerCase();
+
+  try {
+    const checkoutSessionDoc = await createGenericPayCheckout({
+      req,
+      kind: "activity",
+      linkedEntityId: booking._id,
+      payItems,
+      amountTotal,
+      successUrl,
+      cancelUrl,
+      sessionFingerprint,
+      contactEmail,
+    });
+
+    await activityBookingModel.findByIdAndUpdate(booking._id, {
+      checkoutSession: checkoutSessionDoc._id,
+    });
+
+    await appendBookingAudit({
+      entityType: "payment_checkout",
+      entityId: checkoutSessionDoc._id,
+      action: "created_activity",
+      actorId: req.user._id,
+    });
+
+    return successResponse({
+      res,
+      message: "Checkout session created",
+      data: {
+        url: checkoutSessionDoc.stripeSessionUrl,
+        sessionId: checkoutSessionDoc.stripeSessionId,
+        checkoutId: checkoutSessionDoc._id,
+        expiresAt: checkoutSessionDoc.expiresAt,
+        reused: false,
+      },
+    });
+  } catch (error) {
+    throw error;
+  }
+});
+
+export const createRestaurantCheckoutSession = asyncHandler(async (req, res, next) => {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return next(new Error("Stripe secret key is not configured", { cause: 500 }));
+  }
+
+  const { restaurantBookingId } = req.body;
+  if (!Types.ObjectId.isValid(restaurantBookingId)) {
+    return next(new Error("Invalid restaurant booking id", { cause: 400 }));
+  }
+
+  const booking = await BookingTableModel.findById(restaurantBookingId);
+  if (!booking || String(booking.user) !== String(req.user._id)) {
+    return next(new Error("Restaurant booking not found", { cause: 404 }));
+  }
+
+  if (booking.status !== "awaiting_payment") {
+    return next(new Error("This booking is not awaiting payment", { cause: 400 }));
+  }
+
+  const sessionFingerprint = `restaurant:${req.user._id}:${restaurantBookingId}`;
+  const reusableSession = await PaymentCheckoutSession.findOne({
+    user: req.user._id,
+    sessionFingerprint,
+    kind: "restaurant",
+    status: "open",
+    expiresAt: { $gt: new Date() },
+    stripeSessionUrl: { $exists: true, $ne: null },
+  }).sort({ createdAt: -1 });
+
+  if (reusableSession?.stripeSessionUrl) {
+    const syncedSession = await syncStripeSessionState(reusableSession);
+    if (syncedSession?.status === "open" && syncedSession?.stripeSessionUrl) {
+      return successResponse({
+        res,
+        message: "Checkout session reused",
+        data: {
+          url: syncedSession.stripeSessionUrl,
+          sessionId: syncedSession.stripeSessionId,
+          checkoutId: syncedSession._id,
+          expiresAt: syncedSession.expiresAt,
+          reused: true,
+        },
+      });
+    }
+  }
+
+  const lineLabel =
+    booking.lineItems?.length > 0
+      ? `Restaurant order (${booking.bookingMode})`
+      : "Restaurant booking";
+
+  const payItems = [
+    {
+      name: lineLabel,
+      totalPrice: booking.lineItemsTotal || 0,
+      quantity: 1,
+    },
+  ];
+  const amountTotal = Number(booking.lineItemsTotal || 0);
+  if (amountTotal <= 0) {
+    return next(new Error("Nothing to pay for this booking", { cause: 400 }));
+  }
+
+  const { successUrl, cancelUrl } = buildRestaurantCheckoutUrls(req);
+  const contactEmail = String(req.user.email || "").trim().toLowerCase();
+
+  const checkoutSessionDoc = await createGenericPayCheckout({
+    req,
+    kind: "restaurant",
+    linkedEntityId: booking._id,
+    payItems,
+    amountTotal,
+    successUrl,
+    cancelUrl,
+    sessionFingerprint,
+    contactEmail,
+  });
+
+  booking.checkoutSession = checkoutSessionDoc._id;
+  await booking.save();
+
+  await appendBookingAudit({
+    entityType: "payment_checkout",
+    entityId: checkoutSessionDoc._id,
+    action: "created_restaurant",
+    actorId: req.user._id,
+  });
+
+  return successResponse({
+    res,
+    message: "Checkout session created",
+    data: {
+      url: checkoutSessionDoc.stripeSessionUrl,
+      sessionId: checkoutSessionDoc.stripeSessionId,
+      checkoutId: checkoutSessionDoc._id,
+      expiresAt: checkoutSessionDoc.expiresAt,
+      reused: false,
+    },
+  });
+});
+
 export const getCheckoutSessionStatus = asyncHandler(async (req, res, next) => {
   const { sessionId } = req.params;
 
@@ -447,7 +912,7 @@ export const getCheckoutSessionStatus = asyncHandler(async (req, res, next) => {
     stripeSessionId: sessionId,
     user: req.user._id,
   }).select(
-    "_id stripeSessionId status stripePaymentStatus expiresAt fulfilledAt amountTotal currency",
+    "_id kind stripeSessionId status stripePaymentStatus expiresAt fulfilledAt amountTotal currency linkedEntityId",
   );
 
   if (!checkoutSessionDoc) {
@@ -463,6 +928,8 @@ export const getCheckoutSessionStatus = asyncHandler(async (req, res, next) => {
     message: "Checkout session status retrieved",
     data: {
       checkoutId: checkoutSessionDoc._id,
+      kind: checkoutSessionDoc.kind || "room",
+      linkedEntityId: checkoutSessionDoc.linkedEntityId,
       sessionId: checkoutSessionDoc.stripeSessionId,
       status: checkoutSessionDoc.status,
       paymentStatus: checkoutSessionDoc.stripePaymentStatus,

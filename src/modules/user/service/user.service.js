@@ -4,10 +4,30 @@ import { roleTypes, userModel } from "../../../DB/Model/User.model.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 import cloudinary from "../../../utils/multer/cloudinary.js";
 
-const userSelect = "-password -OTP -__v -cartItems -wishlistItems";
-const preferenceSelect = "cartItems wishlistItems";
+const userSelect = "-password -OTP -__v -cartItems -wishlistItems -restaurantCart";
+const preferenceSelect = "cartItems wishlistItems restaurantCart";
 
 const sanitizePreferenceItems = (items) => (Array.isArray(items) ? items : []);
+
+const MAX_RESTAURANT_CART_KEYS = 48;
+const MAX_RESTAURANT_LINE_QTY = 99;
+
+const sanitizeRestaurantCart = (raw) => {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
+  const out = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (Object.keys(out).length >= MAX_RESTAURANT_CART_KEYS) break;
+    const id = String(k).trim();
+    if (!id || id.length > 32) continue;
+    if (!/^[a-fA-F0-9]{24}$/.test(id) && !/^[a-zA-Z0-9_-]{1,32}$/.test(id)) continue;
+    const qty = Math.floor(Number(v));
+    if (!Number.isFinite(qty) || qty < 1 || qty > MAX_RESTAURANT_LINE_QTY) continue;
+    out[id] = qty;
+  }
+  return out;
+};
 
 const parseBooleanField = (value) => {
   if (value === undefined) return undefined;
@@ -94,6 +114,7 @@ export const getPreferences = asyncHandler(async (req, res) => {
     data: {
       cartItems: sanitizePreferenceItems(user?.cartItems),
       wishlistItems: sanitizePreferenceItems(user?.wishlistItems),
+      restaurantCart: sanitizeRestaurantCart(user?.restaurantCart),
     },
   });
 });
@@ -155,6 +176,10 @@ export const updatePreferences = asyncHandler(async (req, res) => {
     updateData.wishlistItems = sanitizePreferenceItems(req.body.wishlistItems);
   }
 
+  if (req.body.restaurantCart !== undefined) {
+    updateData.restaurantCart = sanitizeRestaurantCart(req.body.restaurantCart);
+  }
+
   const user = await userModel
     .findByIdAndUpdate(req.user._id, updateData, {
       new: true,
@@ -168,6 +193,7 @@ export const updatePreferences = asyncHandler(async (req, res) => {
     data: {
       cartItems: sanitizePreferenceItems(user?.cartItems),
       wishlistItems: sanitizePreferenceItems(user?.wishlistItems),
+      restaurantCart: sanitizeRestaurantCart(user?.restaurantCart),
     },
   });
 });

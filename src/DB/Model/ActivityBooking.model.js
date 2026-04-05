@@ -2,6 +2,7 @@ import mongoose, { Schema, model } from "mongoose";
 
 export const activityBookingStatuses = [
   "pending",
+  "awaiting_payment",
   "confirmed",
   "completed",
   "cancelled",
@@ -9,6 +10,8 @@ export const activityBookingStatuses = [
 ];
 
 export const activityBookingPaymentStatuses = ["unpaid", "paid", "refunded"];
+
+export const activityBookingPaymentMethods = ["card", "cash"];
 
 const activityBookingSchema = new Schema(
   {
@@ -91,6 +94,21 @@ const activityBookingSchema = new Schema(
       trim: true,
       maxlength: 500,
       default: "",
+    },
+    paymentMethod: {
+      type: String,
+      enum: activityBookingPaymentMethods,
+      default: "cash",
+    },
+    checkoutSession: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PaymentCheckoutSession",
+      default: null,
+      index: true,
+    },
+    seatsCommitted: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }

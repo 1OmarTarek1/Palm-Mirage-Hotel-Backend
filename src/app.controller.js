@@ -16,6 +16,7 @@ import helmet from 'helmet';
 import bookingController from './modules/bookingTable/bookingTable.controller.js';
 import tableController from './modules/restaurantTable/restaurantTable.controller.js';
 import menuController from './modules/menu/menu.controller.js'
+import notificationController from './modules/notification/notification.controller.js';
 import { allowOrigin } from './config/origins.js';
 
 const parseCookies = (cookieHeader = '') =>
@@ -68,6 +69,7 @@ const bootstrap = (app, express) => {
   app.use('/booking', bookingController);
   app.use('/tables', tableController);
   app.use('/menu',menuController)
+  app.use('/notifications', notificationController);
   app.use('*', (req, res, next) => {
     return res.status(404).json({ message: 'Invalid routing' });
   });

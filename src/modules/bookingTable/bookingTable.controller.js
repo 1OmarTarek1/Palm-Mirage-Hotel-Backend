@@ -5,14 +5,21 @@ import { validation } from "../../middleware/validation.middleware.js";
 import { authentication, authorization } from "../../middleware/auth.middleware.js";
 import { roleTypes } from "../../DB/Model/User.model.js";
 import * as validators from "./bookingTable.validation.js";
+import { privateNoStore } from "../../middleware/httpCache.middleware.js";
 
 const router = Router();
 
 router.post("/booking", authentication(), validation(validators.createBooking), createBooking);
 
-router.get("/my-bookings", authentication(), getMyBookings);
-router.get("/", authentication(), authorization([roleTypes.admin]), getAllBookings);
-router.get("/available-tables", validation(validators.getAvailableTables), getAvailableTables);
+router.get("/my-bookings", privateNoStore, authentication(), getMyBookings);
+router.get("/", privateNoStore, authentication(), authorization([roleTypes.admin]), getAllBookings);
+router.get(
+  "/available-tables",
+  privateNoStore,
+  authentication(),
+  validation(validators.getAvailableTables),
+  getAvailableTables,
+);
 router.patch(
   "/:id/cancel",
   authentication(),

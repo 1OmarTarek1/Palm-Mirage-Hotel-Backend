@@ -5,6 +5,7 @@ import { authentication, authorization } from "../../middleware/auth.middleware.
 import { roleTypes } from "../../DB/Model/User.model.js";
 import { validation } from "../../middleware/validation.middleware.js";
 import * as bookingValidator from "./booking.validation.js";
+import { privateNoStore } from "../../middleware/httpCache.middleware.js";
 
 const bookingRouter = Router();
 
@@ -17,12 +18,15 @@ const adminAuth = [authentication(), authorization(roleTypes.admin)];
 // Public room availability
 bookingRouter.get(
   "/availability/:roomId",
+  privateNoStore,
   validation(bookingValidator.getRoomAvailabilitySchema),
   bookingService.getRoomAvailability
 );
 
 // Get current user's bookings
-bookingRouter.get("/my-bookings", userAuth, bookingService.getMyBookings);
+bookingRouter.get("/my-bookings", privateNoStore, ...userAuth, bookingService.getMyBookings);
+
+bookingRouter.get("/active-stay", privateNoStore, ...userAuth, bookingService.getMyActiveStay);
 
 // Create booking
 bookingRouter.post(
@@ -51,7 +55,8 @@ bookingRouter.delete(
 // Get booking by ID — placed AFTER named routes to avoid /:id swallowing /my-bookings
 bookingRouter.get(
   "/:id",
-  userAuth,
+  privateNoStore,
+  ...userAuth,
   validation(bookingValidator.getBookingByIdSchema),
   bookingService.getBookingById
 );
@@ -61,7 +66,8 @@ bookingRouter.get(
 // Admin: Get all bookings
 bookingRouter.get(
   "/",
-  adminAuth,
+  privateNoStore,
+  ...adminAuth,
   validation(bookingValidator.getAllBookingsSchema),
   bookingService.getAllBookings
 );

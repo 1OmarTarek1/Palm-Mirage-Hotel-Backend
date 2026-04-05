@@ -1,6 +1,7 @@
 import joi from "joi";
 import { generalFields } from "../../middleware/validation.middleware.js";
 import {
+  activityBookingPaymentMethods,
   activityBookingPaymentStatuses,
   activityBookingStatuses,
 } from "../../DB/Model/ActivityBooking.model.js";
@@ -11,6 +12,10 @@ export const createBooking = joi
     guests: joi.number().integer().min(1).required(),
     contactPhone: generalFields.phone.required(),
     notes: joi.string().trim().max(500).allow(""),
+    paymentMethod: joi
+      .string()
+      .valid(...activityBookingPaymentMethods)
+      .default("cash"),
   })
   .required();
 

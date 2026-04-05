@@ -18,3 +18,15 @@ export const createCheckoutSession = joi.object({
 export const getCheckoutSessionStatus = joi.object({
   sessionId: joi.string().trim().required(),
 }).required();
+
+export const createActivityCheckoutSession = joi
+  .object({
+    activityBookingId: objectId.required(),
+  })
+  .required();
+
+export const createRestaurantCheckoutSession = joi
+  .object({
+    restaurantBookingId: objectId.required(),
+  })
+  .required();

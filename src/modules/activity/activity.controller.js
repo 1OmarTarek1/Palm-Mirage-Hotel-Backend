@@ -8,8 +8,10 @@ import { uploadCloudFile } from "../../utils/multer/cloud.multer.js";
 import { fileValidationTypes } from "../../utils/multer/local.multer.js";
 import * as activityScheduleValidators from "../activitySchedule/activitySchedule.validation.js";
 import * as activityScheduleService from "../activitySchedule/services/activitySchedule.service.js";
+import { publicShortCache } from "../../middleware/httpCache.middleware.js";
 
 const router = Router();
+const catalogCache = publicShortCache(60, 180);
 
 router.post(
   "/",
@@ -20,10 +22,11 @@ router.post(
   activityService.createActivity
 );
 
-router.get("/", validation(validators.queryFilter), activityService.getAllActivities);
+router.get("/", catalogCache, validation(validators.queryFilter), activityService.getAllActivities);
 
 router.get(
   "/:activityId/schedules",
+  catalogCache,
   validation(activityScheduleValidators.activitySchedulesParam),
   activityScheduleService.getSchedulesByActivity
 );
@@ -36,7 +39,7 @@ router.post(
   activityScheduleService.createSchedule
 );
 
-router.get("/:id", validation(validators.paramId), activityService.getActivityById);
+router.get("/:id", catalogCache, validation(validators.paramId), activityService.getActivityById);
 
 router.patch(
   "/:id",

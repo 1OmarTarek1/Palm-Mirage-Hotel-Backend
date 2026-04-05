@@ -4,8 +4,10 @@ import { validation } from "../../middleware/validation.middleware.js";
 import { roleTypes } from "../../DB/Model/User.model.js";
 import * as validators from "./activityBooking.validation.js";
 import * as activityBookingService from "./services/activityBooking.service.js";
+import { privateNoStore } from "../../middleware/httpCache.middleware.js";
 
 const router = Router();
+router.use(privateNoStore);
 
 router.post(
   "/",

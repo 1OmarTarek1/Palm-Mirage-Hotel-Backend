@@ -5,6 +5,7 @@ import { RoomModel } from "../../../DB/Model/Room.model.js";
 import { roleTypes } from "../../../DB/Model/User.model.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 import { emitBookingRealtimeUpdate } from "../../../socket/bookingRealtime.js";
+import { appendBookingAudit } from "../../../utils/bookingAuditLog.util.js";
 import {
   dateRangesOverlap,
   getUnavailableRangesForRoom,
@@ -70,11 +71,59 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     source: "website",
   });
 
+  await appendBookingAudit({
+    entityType: "room_booking",
+    entityId: booking._id,
+    action: "created",
+    actorId: req.user._id,
+    after: { status: booking.status, roomId: String(roomId) },
+  });
+
   return successResponse({
     res,
     status: 201,
     data: populatedBooking || booking,
     message: "Booking created successfully",
+  });
+});
+
+export const findActiveStayForUser = async (userId) => {
+  const now = new Date();
+  return UserBooking.findOne({
+    user: userId,
+    status: { $in: ["confirmed", "checked-in"] },
+    checkInDate: { $lte: now },
+    checkOutDate: { $gt: now },
+  })
+    .populate("room", "roomName roomNumber roomType")
+    .sort({ checkInDate: -1 });
+};
+
+export const getMyActiveStay = asyncHandler(async (req, res) => {
+  const stay = await findActiveStayForUser(req.user._id);
+
+  if (!stay) {
+    return successResponse({
+      res,
+      data: { stay: null },
+      message: "No active stay found",
+    });
+  }
+
+  const room = stay.room;
+  return successResponse({
+    res,
+    data: {
+      stay: {
+        bookingId: stay._id,
+        checkInDate: stay.checkInDate,
+        checkOutDate: stay.checkOutDate,
+        status: stay.status,
+        roomNumber: room?.roomNumber ?? null,
+        roomName: room?.roomName ?? null,
+      },
+    },
+    message: "Active stay retrieved",
   });
 });
 

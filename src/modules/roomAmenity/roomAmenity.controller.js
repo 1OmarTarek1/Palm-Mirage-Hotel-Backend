@@ -8,12 +8,14 @@ import {
   authentication,
   authorization,
 } from "../../middleware/auth.middleware.js";
+import { publicShortCache } from "../../middleware/httpCache.middleware.js";
 
 const roomAmenityRouter = Router();
+const catalogCache = publicShortCache(120, 300);
 const adminAuth = [authentication(), authorization(roleTypes.admin)];
 
-roomAmenityRouter.get("/", roomAmenityService.getAllRoomAmenities);
-roomAmenityRouter.get("/:id", roomAmenityService.getRoomAmenityById);
+roomAmenityRouter.get("/", catalogCache, roomAmenityService.getAllRoomAmenities);
+roomAmenityRouter.get("/:id", catalogCache, roomAmenityService.getRoomAmenityById);
 roomAmenityRouter.post(
   "/",
   adminAuth,

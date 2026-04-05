@@ -63,6 +63,11 @@ export const userSchema = new Schema(
       type: [Schema.Types.Mixed],
       default: [],
     },
+    /** Saved restaurant menu picks: { [menuItemId]: qty } — synced like room cart */
+    restaurantCart: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
     deletedAt: Date,
     bannedAt: Date,
     updatedBy: {

@@ -6,8 +6,9 @@ import { paginate } from "../../../utils/pagination/pagination.js";
 import { asyncHandler } from "../../../utils/response/error.response.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 import { emitBookingRealtimeUpdate } from "../../../socket/bookingRealtime.js";
+import { appendBookingAudit } from "../../../utils/bookingAuditLog.util.js";
 
-const activeBookingStatuses = ["pending", "confirmed", "completed"];
+const blockingBookingStatuses = ["pending", "awaiting_payment", "confirmed", "completed"];
 
 const bookingPopulate = [
   {
@@ -64,16 +65,36 @@ const normalizeBooking = (booking) => {
 };
 
 const restoreSeatsIfNeeded = async (booking) => {
-  if (!activeBookingStatuses.includes(booking.status)) return;
+  if (!booking.seatsCommitted) return;
 
   await activityScheduleModel.findByIdAndUpdate(booking.schedule, {
     $inc: { availableSeats: booking.guests },
     $set: { status: "scheduled" },
   });
+  booking.seatsCommitted = false;
+};
+
+export const commitActivitySeats = async (booking) => {
+  const updated = await activityScheduleModel.findOneAndUpdate(
+    { _id: booking.schedule, availableSeats: { $gte: booking.guests } },
+    { $inc: { availableSeats: -booking.guests } },
+    { new: true }
+  );
+
+  if (!updated) {
+    return { ok: false, reason: "Not enough seats available" };
+  }
+
+  const nextStatus = updated.availableSeats === 0 ? "full" : "scheduled";
+  await activityScheduleModel.findByIdAndUpdate(updated._id, { $set: { status: nextStatus } });
+
+  await activityBookingModel.findByIdAndUpdate(booking._id, { seatsCommitted: true });
+  booking.seatsCommitted = true;
+  return { ok: true };
 };
 
 export const createBooking = asyncHandler(async (req, res, next) => {
-  const { scheduleId, guests, contactPhone, notes } = req.body;
+  const { scheduleId, guests, contactPhone, notes, paymentMethod = "cash" } = req.body;
 
   const schedule = await activityScheduleModel.findById(scheduleId).populate(
     "activity",
@@ -87,7 +108,7 @@ export const createBooking = asyncHandler(async (req, res, next) => {
   const existingBooking = await activityBookingModel.findOne({
     user: req.user._id,
     schedule: schedule._id,
-    status: { $in: activeBookingStatuses },
+    status: { $in: blockingBookingStatuses },
   });
 
   if (existingBooking) {
@@ -102,13 +123,21 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     return next(new Error("This activity session is not bookable", { cause: 400 }));
   }
 
-  if (schedule.availableSeats < Number(guests)) {
-    return next(new Error("Not enough seats available for this session", { cause: 400 }));
+  if (paymentMethod === "card") {
+    if (schedule.availableSeats < Number(guests)) {
+      return next(new Error("Not enough seats available for this session", { cause: 400 }));
+    }
+  } else {
+    if (schedule.availableSeats < Number(guests)) {
+      return next(new Error("Not enough seats available for this session", { cause: 400 }));
+    }
   }
 
   const unitPrice = schedule.priceOverride ?? schedule.activity.basePrice ?? 0;
   const pricingType = schedule.activity.pricingType ?? "per_person";
   const totalPrice = pricingType === "per_group" ? unitPrice : unitPrice * Number(guests);
+
+  const status = paymentMethod === "card" ? "awaiting_payment" : "pending";
 
   const booking = await dbService.create({
     model: activityBookingModel,
@@ -125,18 +154,33 @@ export const createBooking = asyncHandler(async (req, res, next) => {
       endTime: schedule.endTime,
       contactPhone,
       notes,
+      status,
+      paymentMethod,
+      paymentStatus: "unpaid",
+      seatsCommitted: false,
     },
-  });
-
-  const nextAvailableSeats = schedule.availableSeats - Number(guests);
-  await activityScheduleModel.findByIdAndUpdate(schedule._id, {
-    $inc: { availableSeats: -Number(guests) },
-    $set: { status: nextAvailableSeats === 0 ? "full" : schedule.status },
   });
 
   const populatedBooking = await activityBookingModel
     .findById(booking._id)
     .populate(bookingPopulate);
+
+  await appendBookingAudit({
+    entityType: "activity_booking",
+    entityId: booking._id,
+    action: "created",
+    actorId: req.user._id,
+    after: { status, paymentMethod, scheduleId: String(schedule._id), guests: Number(guests) },
+  });
+
+  const notifTitle =
+    paymentMethod === "card"
+      ? "Complete payment"
+      : "Activity request submitted";
+  const notifMessage =
+    paymentMethod === "card"
+      ? "Complete card payment to confirm your activity booking."
+      : "Your activity booking is pending staff approval.";
 
   emitBookingRealtimeUpdate({
     resource: "activity",
@@ -144,12 +188,18 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     userId: req.user._id,
     bookingId: booking._id,
     source: "website",
+    title: notifTitle,
+    message: notifMessage,
+    severity: paymentMethod === "card" ? "info" : "info",
   });
 
   return successResponse({
     res,
     status: 201,
-    message: "Activity booking created successfully",
+    message:
+      paymentMethod === "card"
+        ? "Proceed to payment to confirm your booking"
+        : "Activity booking submitted for approval",
     data: { booking: normalizeBooking(populatedBooking) },
   });
 });
@@ -242,21 +292,26 @@ export const updateBookingStatus = asyncHandler(async (req, res, next) => {
   }
 
   const previousStatus = booking.status;
-  booking.status = req.body.status;
+  const nextStatus = req.body.status;
 
-  if (req.body.paymentStatus) {
+  if (["cancelled", "rejected"].includes(nextStatus) && booking.seatsCommitted) {
+    await restoreSeatsIfNeeded(booking);
+  }
+
+  if (nextStatus === "confirmed" && ["pending", "awaiting_payment"].includes(previousStatus)) {
+    const commit = await commitActivitySeats(booking);
+    if (!commit.ok) {
+      return next(new Error(commit.reason || "Cannot confirm booking", { cause: 400 }));
+    }
+  }
+
+  booking.status = nextStatus;
+  if (req.body.paymentStatus !== undefined) {
     booking.paymentStatus = req.body.paymentStatus;
   }
 
   if (req.body.cancellationReason !== undefined) {
     booking.cancellationReason = req.body.cancellationReason;
-  }
-
-  if (
-    activeBookingStatuses.includes(previousStatus) &&
-    ["cancelled", "rejected"].includes(booking.status)
-  ) {
-    await restoreSeatsIfNeeded(booking);
   }
 
   await booking.save();
@@ -265,12 +320,24 @@ export const updateBookingStatus = asyncHandler(async (req, res, next) => {
     .findById(booking._id)
     .populate(bookingPopulate);
 
+  await appendBookingAudit({
+    entityType: "activity_booking",
+    entityId: booking._id,
+    action: "status_updated",
+    actorId: req.user._id,
+    before: { status: previousStatus, paymentStatus: booking.paymentStatus },
+    after: { status: booking.status, paymentStatus: populatedBooking.paymentStatus },
+  });
+
   emitBookingRealtimeUpdate({
     resource: "activity",
     action: "updated",
     userId: booking.user,
     bookingId: booking._id,
     source: "dashboard",
+    title: "Activity booking updated",
+    message: `Your activity booking is now ${booking.status}.`,
+    severity: booking.status === "rejected" ? "warning" : "success",
   });
 
   return successResponse({
@@ -295,7 +362,7 @@ export const cancelMyBooking = asyncHandler(async (req, res, next) => {
     return next(new Error("Booking is already inactive", { cause: 400 }));
   }
 
-  if (booking.paymentStatus === "paid") {
+  if (booking.paymentStatus === "paid" && booking.status === "confirmed") {
     return next(new Error("Paid bookings cannot be cancelled from your account", { cause: 400 }));
   }
 
@@ -308,12 +375,23 @@ export const cancelMyBooking = asyncHandler(async (req, res, next) => {
     .findById(booking._id)
     .populate(bookingPopulate);
 
+  await appendBookingAudit({
+    entityType: "activity_booking",
+    entityId: booking._id,
+    action: "cancelled_by_user",
+    actorId: req.user._id,
+    after: { status: "cancelled" },
+  });
+
   emitBookingRealtimeUpdate({
     resource: "activity",
     action: "cancelled",
     userId: booking.user,
     bookingId: booking._id,
     source: "website",
+    title: "Activity booking cancelled",
+    message: "Your activity booking was cancelled.",
+    severity: "info",
   });
 
   return successResponse({
@@ -322,3 +400,52 @@ export const cancelMyBooking = asyncHandler(async (req, res, next) => {
     data: { booking: normalizeBooking(populatedBooking) },
   });
 });
+
+export const fulfillActivityBookingAfterStripe = async ({ bookingId, checkoutSessionId }) => {
+  const booking = await activityBookingModel.findById(bookingId);
+  if (!booking || booking.status !== "awaiting_payment") {
+    return { ok: false, reason: "invalid_state" };
+  }
+
+  const commit = await commitActivitySeats(booking);
+  if (!commit.ok) {
+    return commit;
+  }
+
+  await activityBookingModel.findByIdAndUpdate(bookingId, {
+    status: "confirmed",
+    paymentStatus: "paid",
+    checkoutSession: checkoutSessionId,
+  });
+
+  await appendBookingAudit({
+    entityType: "activity_booking",
+    entityId: bookingId,
+    action: "paid_stripe",
+    actorId: null,
+    metadata: { checkoutSessionId: String(checkoutSessionId) },
+  });
+
+  return { ok: true, userId: booking.user };
+};
+
+export const cancelActivityBookingAwaitingPayment = async (bookingId, reason = "payment_expired") => {
+  const booking = await activityBookingModel.findById(bookingId);
+  if (!booking || booking.status !== "awaiting_payment") {
+    return { ok: false };
+  }
+
+  await activityBookingModel.findByIdAndUpdate(bookingId, {
+    status: "cancelled",
+    cancellationReason: reason,
+  });
+
+  await appendBookingAudit({
+    entityType: "activity_booking",
+    entityId: bookingId,
+    action: "cancelled_payment_timeout",
+    metadata: { reason },
+  });
+
+  return { ok: true, userId: booking.user };
+};

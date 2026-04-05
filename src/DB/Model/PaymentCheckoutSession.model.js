@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+export const paymentCheckoutKinds = ["room", "activity", "restaurant"];
+
 const checkoutItemSchema = new mongoose.Schema(
   {
     room: {
@@ -51,8 +53,44 @@ const checkoutItemSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const payItemSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    totalPrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    quantity: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+  },
+  { _id: false },
+);
+
 const paymentCheckoutSessionSchema = new mongoose.Schema(
   {
+    kind: {
+      type: String,
+      enum: paymentCheckoutKinds,
+      default: "room",
+      index: true,
+    },
+    linkedEntityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      index: true,
+      sparse: true,
+    },
+    payItems: {
+      type: [payItemSchema],
+      default: [],
+    },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -68,12 +106,6 @@ const paymentCheckoutSessionSchema = new mongoose.Schema(
     items: {
       type: [checkoutItemSchema],
       default: [],
-      validate: {
-        validator(value) {
-          return Array.isArray(value) && value.length > 0;
-        },
-        message: "At least one checkout item is required",
-      },
     },
     currency: {
       type: String,
@@ -157,6 +189,21 @@ const paymentCheckoutSessionSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+paymentCheckoutSessionSchema.pre("validate", function validateCheckoutPayload(next) {
+  const kind = this.kind || "room";
+  if (kind === "room") {
+    if (!Array.isArray(this.items) || this.items.length === 0) {
+      this.invalidate("items", "At least one room item is required");
+    }
+  } else {
+    if (!Array.isArray(this.payItems) || this.payItems.length === 0) {
+      this.invalidate("payItems", "At least one line item is required");
+    }
+    this.items = [];
+  }
+  next();
+});
 
 paymentCheckoutSessionSchema.index({ user: 1, sessionFingerprint: 1, status: 1 });
 

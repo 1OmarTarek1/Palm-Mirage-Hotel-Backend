@@ -1,5 +1,5 @@
 /**
- * Full local dataset (users, rooms, menu, restaurant page images, activities, …).
+ * Full local dataset (users, 100 rooms, room amenities, menu, restaurant page images, activities, …).
  * Run from Backend: `node scripts/seed-local-data.js` (requires DB_URL in src/config/.env.dev).
  * Menu-only refresh (keeps tables & table bookings): `node scripts/seed-local-data.js --menu-only`
  * Also backfills `paymentStatus` on restaurant bookings missing it (unpaid).
@@ -14,6 +14,7 @@ dotenv.config({ path: path.resolve("./src/config/.env.dev") });
 import { userModel, roleTypes, providerTypes, genderTypes } from "../src/DB/Model/User.model.js";
 import { FacilityModel } from "../src/DB/Model/Facility.model.js";
 import { RoomModel } from "../src/DB/Model/Room.model.js";
+import { RoomAmenityModel } from "../src/DB/Model/RoomAmenity.model.js";
 import { UserBooking } from "../src/DB/Model/UserBooking.model.js";
 import { TableModel } from "../src/DB/Model/table.model.js";
 import TableBookingModel from "../src/DB/Model/bookingTable.model.js";
@@ -52,14 +53,60 @@ const addDays = (days, hour = 12, minute = 0) => {
 const addHours = (date, hours) => new Date(date.getTime() + hours * hourMs);
 const time = (hour, minute = 0) => `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 
-const roomImages = [
-  u("photo-1505693416388-ac5ce068fe85"),
-  u("photo-1522708323590-d24dbb6b0267"),
-  u("photo-1496417263034-38ec4f0b665a"),
-  u("photo-1502672260266-1c1ef2d93688"),
-  u("photo-1512918728675-ed5a9ecdebfd"),
-  u("photo-1505692952047-1a78307da8f2"),
-];
+/** Large pool — bedrooms, baths, suites, views (Unsplash) for varied room galleries */
+const roomImagePool = [
+  "photo-1631049307264-d0bfeabcfad6",
+  "photo-1618773928121-c32242e63f39",
+  "photo-1590490360182-c33d57733427",
+  "photo-1582719478250-c89cae4dc85b",
+  "photo-1611892440504-42a792e24d32",
+  "photo-1501117716987-e44a19849d9b",
+  "photo-1522771739844-6a9f6d5f14af",
+  "photo-1559599101-f09722fb4948",
+  "photo-1600607687939-ce8a6c25118c",
+  "photo-1566668622588-7567698c4e77",
+  "photo-1566073771259-6a850d9931da",
+  "photo-1445019980597-93fa9ea235a5",
+  "photo-1564501049412-61c2a3083791",
+  "photo-1584132967334-10e028bd69f7",
+  "photo-1591088398339-371a9c57a8d2",
+  "photo-1505691938895-1758d7feb511",
+  "photo-1512918728675-ed5a9ecdebfd",
+  "photo-1502672260266-1c1ef2d93688",
+  "photo-1496417263034-38ec4f0b665a",
+  "photo-1522708323590-d24dbb6b0267",
+  "photo-1505693416388-ac5ce068fe85",
+  "photo-1505692952047-1a78307da8f2",
+  "photo-1512917856033-6d1daf126f28",
+  "photo-1595526114035-0d45ed16cf26",
+  "photo-1582719508461-905be673a2e2",
+  "photo-1578683010236-d716f9a3f461",
+  "photo-1542314831-068cd1dbfeeb",
+  "photo-1598928506311-c55ded91a20c",
+].map((id) => u(id));
+
+const ROOM_TYPE_ORDER = ["single", "double", "twin", "deluxe", "family"];
+const ROOM_WINGS = ["Nile", "East", "West", "Garden", "Royal", "Palm", "Sky", "Courtyard"];
+const TYPE_LABEL = { single: "Single", double: "Double", twin: "Twin", deluxe: "Deluxe", family: "Family" };
+const BASE_PRICE = { single: 1950, double: 3050, twin: 2880, deluxe: 4550, family: 6400 };
+
+async function seedRoomAmenities() {
+  const defs = [
+    { name: "High-Speed Wi-Fi", icon: "Wifi", description: "Fast wireless internet in the room." },
+    { name: "Air Conditioning", icon: "Wind", description: "Individually controlled climate." },
+    { name: "Smart TV", icon: "Tv", description: "Flat-screen smart TV with streaming." },
+    { name: "Mini Bar", icon: "Refrigerator", description: "Minibar with drinks and snacks." },
+    { name: "Coffee Station", icon: "Coffee", description: "Tea and coffee making facilities." },
+    { name: "Private Bathroom", icon: "Bath", description: "En-suite bathroom with amenities." },
+    { name: "Electronic Safe", icon: "Lock", description: "In-room safe for valuables." },
+    { name: "Direct Dial Phone", icon: "Phone", description: "Direct line to reception." },
+    { name: "Work Desk", icon: "Monitor", description: "Desk suited for remote work." },
+    { name: "Balcony", icon: "Umbrella", description: "Private balcony or terrace seating." },
+    { name: "Daily Housekeeping", icon: "Shirt", description: "Daily housekeeping service." },
+    { name: "Rain Shower", icon: "Droplets", description: "Walk-in rain shower." },
+  ];
+  return RoomAmenityModel.create(defs);
+}
 
 const categoryImages = {
   Appetizer: pc("1640772/pexels-photo-1640772.jpeg"),
@@ -87,6 +134,7 @@ async function resetCollections() {
     Category.deleteMany({}),
     UserBooking.deleteMany({}),
     RoomModel.deleteMany({}),
+    RoomAmenityModel.deleteMany({}),
     FacilityModel.deleteMany({}),
     hotelModel.deleteMany({}),
     userModel.deleteMany({}),
@@ -142,74 +190,180 @@ async function seedHotel() {
   return hotelModel.create({ name: "Palm Mirage Hotel", Location: "Luxor, Egypt", Gid: 1 });
 }
 
-async function seedRooms(facilities) {
-  const facilityIds = facilities.map((facility) => facility._id);
-  const defs = [
-    ["Nile Deluxe Suite", 101, "deluxe", 4200, 2, 10, 1, 4.9, 124, 820, true],
-    ["Palm Family Residence", 102, "family", 6100, 4, 8, 1, 4.8, 97, 640, true],
-    ["Garden Single Retreat", 103, "single", 2200, 1, 0, 1, 4.3, 41, 210, false],
-    ["Classic Twin Escape", 201, "twin", 3150, 2, 5, 2, 4.4, 68, 334, true],
-    ["Sunset Double Premier", 202, "double", 3550, 2, 7, 2, 4.5, 76, 355, true],
-    ["Executive Deluxe Corner", 203, "deluxe", 4700, 2, 12, 2, 4.9, 132, 905, true],
-    ["Courtyard Twin Comfort", 204, "twin", 2950, 2, 0, 2, 4.1, 38, 190, false],
-    ["Palm Signature Double", 205, "double", 3900, 2, 6, 2, 4.7, 84, 488, true],
-    ["Royal Family Horizon", 301, "family", 6600, 5, 10, 3, 4.9, 109, 730, true],
-    ["Heritage Single Studio", 302, "single", 2350, 1, 3, 3, 4.2, 22, 140, true],
-    ["Mirage Deluxe Panorama", 303, "deluxe", 4950, 3, 9, 3, 4.8, 118, 689, true],
-    ["Skyline Twin Select", 304, "twin", 3250, 2, 4, 3, 4.4, 46, 256, true],
-  ];
-  return RoomModel.create(
-    defs.map(([roomName, roomNumber, roomType, price, capacity, discount, floor, rating, reviewsCount, viewsCount, hasOffer], index) => ({
-      roomName, roomNumber, roomType, price, capacity, discount, floor, rating, reviewsCount, viewsCount, hasOffer,
-      description: `${roomName} offers a polished stay experience with balanced comfort, calm lighting, and practical amenities.`,
-      facilities: facilityIds.slice(index % 5, (index % 5) + 5),
+function capacityForRoomType(roomType, index) {
+  if (roomType === "single") return 1;
+  if (roomType === "double" || roomType === "twin") return 2;
+  if (roomType === "deluxe") return 2 + (index % 2);
+  return 4 + (index % 3);
+}
+
+/** 100 rooms (101–200): every type, multiple floors, offers, discounts, and image variety for QA */
+async function seedRooms(facilities, roomAmenities) {
+  const facilityIds = facilities.map((f) => f._id);
+  const amenityIds = roomAmenities.map((a) => a._id);
+  const totalRooms = 100;
+  const startNumber = 101;
+
+  const docs = Array.from({ length: totalRooms }, (_, i) => {
+    const roomNumber = startNumber + i;
+    const floor = Math.floor(i / 10) + 1;
+    const roomType = ROOM_TYPE_ORDER[i % ROOM_TYPE_ORDER.length];
+    const wing = ROOM_WINGS[i % ROOM_WINGS.length];
+    const label = TYPE_LABEL[roomType];
+    const roomName = `${wing} ${label} · ${roomNumber}`;
+
+    const base = BASE_PRICE[roomType];
+    const price = base + floor * 85 + (i % 7) * 110 + (i % 3) * 55;
+    const discount = [0, 0, 5, 8, 10, 12, 15][i % 7];
+    const capacity = capacityForRoomType(roomType, i);
+    const rating = Math.round((3.5 + (i % 15) * 0.1 + (i % 4) * 0.05) * 10) / 10;
+    const reviewsCount = 8 + (i * 11) % 220;
+    const viewsCount = 120 + (i * 37) % 4200;
+    const hasOffer = i % 3 === 0;
+    const isAvailable = i % 9 !== 0;
+    const checkInTime = i % 8 === 0 ? "15:00" : "14:00";
+    const checkOutTime = i % 11 === 0 ? "11:00" : "12:00";
+
+    const imgA = roomImagePool[i % roomImagePool.length];
+    const imgB = roomImagePool[(i + 9) % roomImagePool.length];
+    const imgC = roomImagePool[(i + 19) % roomImagePool.length];
+
+    const fi = i % Math.max(1, facilityIds.length - 4);
+    const ai = i % Math.max(1, amenityIds.length - 3);
+
+    const descriptions = [
+      `Quiet ${label.toLowerCase()} room on floor ${floor} with Nile-inspired tones and blackout curtains.`,
+      `${label} layout ideal for ${capacity}-guest comfort; warm lighting and premium bedding.`,
+      `Spacious ${label.toLowerCase()} with thoughtful workspace, refreshed daily for extended stays.`,
+      `Corner ${label.toLowerCase()} with extra natural light; family-friendly touches where applicable.`,
+    ];
+
+    return {
+      roomName,
+      roomNumber,
+      roomType,
+      price,
+      capacity,
+      discount,
+      floor,
+      rating,
+      reviewsCount,
+      viewsCount,
+      hasOffer,
+      description: descriptions[i % descriptions.length],
+      facilities: facilityIds.slice(fi, fi + 5),
+      amenities: amenityIds.slice(ai, ai + 5),
       roomImages: [
-        { secure_url: roomImages[index % roomImages.length], public_id: `room-${roomNumber}-cover` },
-        { secure_url: roomImages[(index + 1) % roomImages.length], public_id: `room-${roomNumber}-alt` },
+        { secure_url: imgA, public_id: `seed-room-${roomNumber}-a` },
+        { secure_url: imgB, public_id: `seed-room-${roomNumber}-b` },
+        { secure_url: imgC, public_id: `seed-room-${roomNumber}-c` },
       ],
-      isAvailable: index % 4 !== 0,
-      checkInTime: "14:00",
-      checkOutTime: "12:00",
-      cancellationPolicy: index % 3 === 0 ? "Free cancellation up to 48 hours before arrival." : "Non-refundable after confirmation.",
-    }))
-  );
+      isAvailable,
+      checkInTime,
+      checkOutTime,
+      cancellationPolicy:
+        i % 4 === 0
+          ? "Free cancellation up to 48 hours before arrival."
+          : i % 4 === 1
+            ? "Non-refundable after confirmation."
+            : i % 4 === 2
+              ? "Free cancellation until 72 hours prior; 50% charge after."
+              : "Flexible rebooking to another date within 12 months.",
+    };
+  });
+
+  return RoomModel.create(docs);
 }
 
 async function seedRoomBookings(users, rooms) {
-  const defs = [
-    [1, 0, 2, 5, 2, "confirmed", "paid", "card", "High floor and extra pillows"],
-    [2, 1, 3, 6, 4, "confirmed", "paid", "online", "Baby crib and quiet room"],
-    [3, 2, 1, 2, 1, "completed", "paid", "cash", "Early breakfast box"],
-    [4, 3, 5, 8, 2, "pending", "unpaid", "online", "Late arrival after midnight"],
-    [5, 4, 7, 10, 2, "confirmed", "paid", "card", "Anniversary setup"],
-    [6, 5, -6, -3, 2, "completed", "paid", "card", "Airport pickup requested"],
-    [7, 6, -10, -8, 2, "cancelled", "refunded", "online", "Flight changed"],
-    [8, 7, 4, 7, 2, "confirmed", "paid", "card", "Near elevator"],
-    [9, 8, 8, 11, 5, "pending", "unpaid", "cash", "Family room with crib"],
-    [10, 9, 6, 9, 1, "confirmed", "paid", "online", "Non-smoking room"],
-    [11, 10, -2, 1, 3, "confirmed", "paid", "card", "Extra towels"],
-    [12, 11, 10, 13, 2, "pending", "unpaid", "online", "River view preferred"],
+  const roomCount = rooms.length;
+  const maxUserIdx = Math.max(1, users.length - 1);
+  const notes = [
+    "High floor and extra pillows",
+    "Baby crib and quiet room",
+    "Early breakfast box",
+    "Late arrival after midnight",
+    "Anniversary setup",
+    "Airport pickup requested",
+    "Flight changed — cancelled",
+    "Near elevator preferred",
+    "Family room with crib",
+    "Non-smoking room",
+    "Extra towels",
+    "River view if possible",
+    "Connecting rooms request",
+    "Late checkout interest",
+    "Ground floor for mobility",
+    "Twin beds confirmed",
+    "Allergen-free pillows",
+    "Corporate billing reference",
+    "Honeymoon decoration",
+    "Two keys required",
   ];
 
+  const defs = Array.from({ length: 48 }, (_, b) => {
+    const userIndex = 1 + (b % maxUserIdx);
+    const roomIndex = (b * 19 + (b % 7) * 3) % roomCount;
+    const startOffset = -14 + (b % 22);
+    const endOffset = startOffset + 2 + (b % 6);
+    const guests = 1 + (b % 5);
+    const statusCycle = ["confirmed", "pending", "completed", "cancelled", "confirmed", "confirmed"];
+    const status = statusCycle[b % statusCycle.length];
+    let paymentStatus = "paid";
+    let paymentMethod = b % 2 === 0 ? "card" : "online";
+    if (status === "pending") {
+      paymentStatus = "unpaid";
+      paymentMethod = "online";
+    } else if (status === "cancelled") {
+      paymentStatus = "refunded";
+      paymentMethod = "online";
+    } else if (b % 9 === 0) {
+      paymentMethod = "cash";
+    }
+    return {
+      userIndex,
+      roomIndex,
+      startOffset,
+      endOffset,
+      guests,
+      status,
+      paymentStatus,
+      paymentMethod,
+      specialRequests: notes[b % notes.length],
+    };
+  });
+
   return UserBooking.create(
-    defs.map(([userIndex, roomIndex, startOffset, endOffset, guests, status, paymentStatus, paymentMethod, specialRequests]) => {
-      const room = rooms[roomIndex];
-      const checkInDate = addDays(startOffset, 14);
-      const checkOutDate = addDays(endOffset, 12);
-      const nights = Math.max(1, Math.ceil((checkOutDate - checkInDate) / dayMs));
-      return {
-        user: users[userIndex]._id,
-        room: room._id,
-        checkInDate,
-        checkOutDate,
-        totalPrice: Math.round((room.finalPrice || room.price) * nights),
+    defs.map(
+      ({
+        userIndex,
+        roomIndex,
+        startOffset,
+        endOffset,
         guests,
         status,
         paymentStatus,
         paymentMethod,
         specialRequests,
-      };
-    })
+      }) => {
+        const room = rooms[roomIndex];
+        const checkInDate = addDays(startOffset, 14);
+        const checkOutDate = addDays(endOffset, 12);
+        const nights = Math.max(1, Math.ceil((checkOutDate - checkInDate) / dayMs));
+        return {
+          user: users[userIndex]._id,
+          room: room._id,
+          checkInDate,
+          checkOutDate,
+          totalPrice: Math.round((room.finalPrice || room.price) * nights),
+          guests,
+          status,
+          paymentStatus,
+          paymentMethod,
+          specialRequests,
+        };
+      }
+    )
   );
 }
 
@@ -545,7 +699,8 @@ async function main() {
   const hotel = await seedHotel();
   const users = await seedUsers();
   const facilities = await seedFacilities();
-  const rooms = await seedRooms(facilities);
+  const roomAmenities = await seedRoomAmenities();
+  const rooms = await seedRooms(facilities, roomAmenities);
   const roomBookings = await seedRoomBookings(users, rooms);
   const tables = await seedTables();
   const tableBookings = await seedTableBookings(users, tables);
@@ -563,6 +718,7 @@ async function main() {
     hotel: hotel.name,
     users: users.length,
     facilities: facilities.length,
+    roomAmenities: roomAmenities.length,
     rooms: rooms.length,
     roomBookings: roomBookings.length,
     tables: tables.length,

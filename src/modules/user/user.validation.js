@@ -33,12 +33,24 @@ export const adminUserIdParam = joi.object({
   userId: generalFields.id.required(),
 });
 
+const restaurantCartKeys = joi
+  .object()
+  .pattern(
+    joi
+      .string()
+      .max(32)
+      .pattern(/^[a-fA-F0-9]{24}$|^[a-zA-Z0-9_-]{1,32}$/),
+    joi.number().integer().min(1).max(99),
+  )
+  .max(48);
+
 export const updatePreferences = joi
   .object({
     cartItems: joi.array().items(preferenceItem).optional(),
     wishlistItems: joi.array().items(preferenceItem).optional(),
+    restaurantCart: restaurantCartKeys.optional(),
   })
-  .or("cartItems", "wishlistItems");
+  .or("cartItems", "wishlistItems", "restaurantCart");
 
 export const updateProfile = joi
   .object({

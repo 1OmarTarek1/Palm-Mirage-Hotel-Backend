@@ -10,15 +10,17 @@ import {
 } from "../../middleware/auth.middleware.js";
 import { uploadCloudFile } from "../../utils/multer/cloud.multer.js";
 import { fileValidationTypes } from "../../utils/multer/local.multer.js";
+import { publicShortCache } from "../../middleware/httpCache.middleware.js";
 
 const roomRouter = Router();
+const catalogCache = publicShortCache(60, 180);
 
 const adminAuth = [authentication(), authorization(roleTypes.admin)];
 
-roomRouter.get("/", roomService.getAllRooms);
-roomRouter.get("/offers", roomService.getRoomsWithOffers);
-roomRouter.get("/top-rated", roomService.getTopRatedRooms);
-roomRouter.get("/:id", roomService.getRoomById);
+roomRouter.get("/", catalogCache, roomService.getAllRooms);
+roomRouter.get("/offers", catalogCache, roomService.getRoomsWithOffers);
+roomRouter.get("/top-rated", catalogCache, roomService.getTopRatedRooms);
+roomRouter.get("/:id", catalogCache, roomService.getRoomById);
 
 //  Admin Routes
 roomRouter.post(

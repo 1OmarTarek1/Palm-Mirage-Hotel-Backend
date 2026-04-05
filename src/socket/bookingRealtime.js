@@ -1,4 +1,5 @@
 import { emitSocketEvent } from "./index.js";
+import { persistFromBookingRealtimePayload } from "../modules/notification/notification.service.js";
 
 export const BOOKING_SOCKET_EVENTS = {
   userUpdated: "user.booking.updated",
@@ -19,6 +20,13 @@ const normalizeIds = (value) => {
   return [value?.toString?.() ?? value].filter(Boolean);
 };
 
+const defaultNotificationCopy = ({ resource, action }) => {
+  const r = resource || "booking";
+  const a = action || "updated";
+  const title = `${r.replace(/_/g, " ")} ${a}`;
+  return { title, message: title, severity: "info" };
+};
+
 export const emitBookingRealtimeUpdate = ({
   resource,
   action,
@@ -27,6 +35,9 @@ export const emitBookingRealtimeUpdate = ({
   bookingIds,
   source,
   metadata,
+  title,
+  message,
+  severity,
 } = {}) => {
   if (!resource || !action) {
     return false;
@@ -34,6 +45,7 @@ export const emitBookingRealtimeUpdate = ({
 
   const normalizedUserId = userId?.toString?.() ?? userId;
   const normalizedBookingIds = normalizeIds(bookingIds ?? bookingId);
+  const fallback = defaultNotificationCopy({ resource, action });
   const payload = {
     resource,
     action,
@@ -43,6 +55,9 @@ export const emitBookingRealtimeUpdate = ({
     source: source || "application",
     metadata: metadata && typeof metadata === "object" ? { ...metadata } : undefined,
     occurredAt: new Date().toISOString(),
+    title: title || fallback.title,
+    message: message || fallback.message,
+    severity: severity || fallback.severity,
   };
 
   let emitted = false;
@@ -62,6 +77,10 @@ export const emitBookingRealtimeUpdate = ({
       event: BOOKING_SOCKET_EVENTS.dashboardUpdated,
       payload,
     }) || emitted;
+
+  void persistFromBookingRealtimePayload(payload).catch((err) => {
+    console.error("[notifications] persist booking realtime failed:", err?.message || err);
+  });
 
   return emitted;
 };

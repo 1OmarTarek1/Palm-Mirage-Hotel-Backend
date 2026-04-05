@@ -6,20 +6,25 @@ import { authentication, authorization } from '../../middleware/auth.middleware.
 import { roleTypes } from '../../DB/Model/User.model.js';
 import { uploadCloudFile } from '../../utils/multer/cloud.multer.js';
 import { fileValidationTypes } from '../../utils/multer/local.multer.js';
+import { publicShortCache } from '../../middleware/httpCache.middleware.js';
 
 const router = Router();
+const catalogCache = publicShortCache(45, 120);
 const upload = uploadCloudFile(fileValidationTypes.image);
 
 
 router.get('/get-all-items', 
+    catalogCache,
     menuService.getAllMenuItems
 );
 
 router.get('/menu-grouped', 
+    catalogCache,
     menuService.getMenu
 );
 
 router.get('/restaurant-page',
+    catalogCache,
     menuService.getRestaurantPage
 );
 
