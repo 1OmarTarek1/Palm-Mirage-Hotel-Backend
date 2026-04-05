@@ -60,6 +60,20 @@ export const updateBookingSchema = Joi.object({
   paymentMethod: Joi.string()
     .valid("cash", "card", "online")
     .optional(),
+
+  status: Joi.string()
+    .valid("pending", "confirmed", "checked-in", "completed", "cancelled", "no-show")
+    .optional(),
+
+  paymentStatus: Joi.string()
+    .valid("unpaid", "paid", "refunded")
+    .optional(),
+
+  cancellationReason: Joi.string()
+    .max(500)
+    .trim()
+    .allow("")
+    .optional(),
 }).min(1).messages({   // at least one field must be sent
   "object.min": "At least one field must be provided to update",
 });

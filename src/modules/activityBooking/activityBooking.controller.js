@@ -15,6 +15,12 @@ router.post(
 );
 
 router.get(
+  "/my-bookings",
+  authentication(),
+  activityBookingService.getMyBookings
+);
+
+router.get(
   "/my",
   authentication(),
   activityBookingService.getMyBookings

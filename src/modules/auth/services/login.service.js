@@ -39,10 +39,24 @@ const clearAccessTokenCookie = (res) => {
   res.clearCookie("accessToken", buildAccessCookieOptions());
 };
 
+const purgeDeletedUserByEmail = async (email) => {
+  const existingUser = await dbService.findOne({
+    model: userModel,
+    filter: { email },
+  });
+
+  if (existingUser?.deletedAt) {
+    await userModel.findByIdAndDelete(existingUser._id);
+    return null;
+  }
+
+  return existingUser;
+};
+
 export const login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
 
-  const user = await dbService.findOne({ model: userModel, filter: { email } });
+  const user = await purgeDeletedUserByEmail(email);
 
   if (!user) {
     return next(new Error("user not found"), { cause: 404 });
@@ -52,16 +66,6 @@ export const login = asyncHandler(async (req, res, next) => {
   }
   if (user.bannedAt != undefined) {
     return next(new Error("your account is  banned"), { cause: 400 });
-  }
-  if (user.deletedAt != undefined) {
-    await dbService.findOneAndUpdate({
-      model: userModel,
-      filter: {
-        email,
-      },
-      options: { new: true },
-      data: { $unset: { deletedAt } },
-    });
   }
   if (user.provider != providerTypes.system) {
     return next(new Error("Not Provided"), { cause: 400 });
@@ -107,10 +111,7 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
     return next(new Error("Google email is not verified"), { cause: 400 });
   }
 
-  let user = await dbService.findOne({
-    model: userModel,
-    filter: { email: payload.email },
-  });
+  let user = await purgeDeletedUserByEmail(payload.email);
 
   if (user) {
     if (user.provider !== providerTypes.google) {
@@ -120,13 +121,6 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
     }
     if (user.bannedAt) {
       return next(new Error("Your account is banned"), { cause: 403 });
-    }
-    if (user.deletedAt) {
-      await dbService.updateOne({
-        model: userModel,
-        filter: { email: payload.email },
-        data: { $unset: { deletedAt: 1 } },
-      });
     }
   } else {
     user = await dbService.create({

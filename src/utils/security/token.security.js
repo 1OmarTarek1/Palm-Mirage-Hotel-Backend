@@ -40,6 +40,9 @@ export const decodeToken = async ({ authorization = "", tokenType = tokenTypes.a
   if (!user) {
     return next(new Error("In-valid account ", { cause: 404 }));
   }
+  if (user.deletedAt) {
+    return next(new Error("This account has been deleted", { cause: 401 }));
+  }
 
   if (user.changeCredentialTime?.getTime() >= decoded.iat * 1000) {
     return next(new Error("In-valid  credentials", { cause: 400 }));

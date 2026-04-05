@@ -4,6 +4,38 @@ import { TableModel } from "../../../DB/Model/table.model.js";
 import { asyncHandler } from '../../../utils/response/error.response.js';
 import * as dbService from '../../../DB/db.service.js';
 import { successResponse } from "../../../utils/response/success.response.js";
+import { emitBookingRealtimeUpdate } from "../../../socket/bookingRealtime.js";
+
+const restaurantBookingPopulate = [
+    { path: 'user', select: 'userName email phoneNumber' },
+];
+
+const normalizeRestaurantBooking = (booking) => {
+    const item = booking?.toObject ? booking.toObject() : booking;
+
+    if (!item) {
+        return null;
+    }
+
+    return {
+        ...item,
+        user: item.user
+            ? {
+                id: item.user._id ?? item.user.id ?? item.user,
+                userName: item.user.userName,
+                email: item.user.email,
+                phoneNumber: item.user.phoneNumber,
+            }
+            : null,
+    };
+};
+
+const loadRestaurantBooking = (bookingId) =>
+    dbService.findOne({
+        model: BookingModel,
+        filter: { _id: bookingId },
+        populate: restaurantBookingPopulate,
+    });
 
 // CREATE OR AUTO ASSIGN BOOKING WITH WAITLIST
 export const createBooking = asyncHandler(async (req, res, next) => {
@@ -57,6 +89,14 @@ export const createBooking = asyncHandler(async (req, res, next) => {
             status: 'pending',
         };
         const waitlistBooking = await dbService.create({ model: BookingModel, data: waitlistData });
+        emitBookingRealtimeUpdate({
+            resource: "restaurant",
+            action: "created",
+            userId: req.user._id,
+            bookingId: waitlistBooking._id,
+            source: "website",
+            metadata: { waitlist: true },
+        });
         return successResponse({ res, status: 200, message: "All tables are booked. You are added to the waitlist.", data: { booking: waitlistBooking } });
     }
 
@@ -90,10 +130,24 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     const populatedBooking = await dbService.findOne({
         model: BookingModel,
         filter: { _id: booking._id },
-        populate: [{ path: 'user' }],
+        populate: restaurantBookingPopulate,
     });
 
-    return successResponse({ res, status: 201, message: "Booking confirmed", data: { booking: populatedBooking } });
+    emitBookingRealtimeUpdate({
+        resource: "restaurant",
+        action: "created",
+        userId: req.user._id,
+        bookingId: booking._id,
+        source: "website",
+        metadata: { waitlist: false },
+    });
+
+    return successResponse({
+        res,
+        status: 201,
+        message: "Booking confirmed",
+        data: { booking: normalizeRestaurantBooking(populatedBooking) },
+    });
 });
 
 // GET AVAILABLE TABLES
@@ -133,13 +187,17 @@ export const promoteWaitlist = async (tableNumber, startTime, endTime) => {
         .sort({ createdAt: 1 });
 
     if (nextInWaitlist) {
-        await dbService.findOneAndUpdate({
+        const promotedBooking = await dbService.findOneAndUpdate({
             model: BookingModel,
             filter: { _id: nextInWaitlist._id },
             data: { tableNumber, status: 'confirmed' },
             options: { new: true }
         });
+
+        return loadRestaurantBooking(promotedBooking?._id || nextInWaitlist._id);
     }
+
+    return null;
 };
 
 // CANCEL BOOKING
@@ -161,7 +219,7 @@ export const cancelBooking = asyncHandler(async (req, res, next) => {
     }
 
     // Update status to cancelled
-    await dbService.findOneAndUpdate({
+    const cancelledBooking = await dbService.findOneAndUpdate({
         model: BookingModel,
         filter: { _id: booking._id },
         data: { status: 'cancelled' },
@@ -169,20 +227,116 @@ export const cancelBooking = asyncHandler(async (req, res, next) => {
     });
 
     // Promote waitlist
-    await promoteWaitlist(
+    const promotedBooking = await promoteWaitlist(
         booking.tableNumber,
         booking.startTime,
         booking.endTime
     );
 
-    return successResponse({ res, status: 200, message: "Booking cancelled successfully", data: { cancelledBooking: booking } });
+    emitBookingRealtimeUpdate({
+        resource: "restaurant",
+        action: "cancelled",
+        userId: booking.user,
+        bookingId: booking._id,
+        source: "dashboard",
+    });
+
+    if (promotedBooking?.user?.id) {
+        emitBookingRealtimeUpdate({
+            resource: "restaurant",
+            action: "promoted",
+            userId: promotedBooking.user.id,
+            bookingId: promotedBooking._id,
+            source: "dashboard",
+        });
+    }
+
+    return successResponse({ res, status: 200, message: "Booking cancelled successfully", data: { cancelledBooking: cancelledBooking || booking } });
+});
+
+export const getMyBookings = asyncHandler(async (req, res) => {
+    const bookings = await dbService.findAll({
+        model: BookingModel,
+        filter: { user: req.user._id },
+        populate: restaurantBookingPopulate,
+        sort: '-createdAt',
+    });
+
+    return successResponse({
+        res,
+        status: 200,
+        message: "Your restaurant bookings were retrieved successfully",
+        data: { bookings: bookings.map(normalizeRestaurantBooking) },
+    });
+});
+
+export const cancelMyBooking = asyncHandler(async (req, res, next) => {
+    const booking = await BookingModel.findOne({
+        _id: req.params.id,
+        user: req.user._id,
+    });
+
+    if (!booking) {
+        return next(new Error("Booking not found"), { cause: 404 });
+    }
+
+    if (booking.status === 'cancelled') {
+        return next(new Error("Booking is already cancelled"), { cause: 400 });
+    }
+
+    if (booking.status === 'completed') {
+        return next(new Error("Completed bookings cannot be cancelled"), { cause: 400 });
+    }
+
+    if (booking.endTime < new Date()) {
+        return next(new Error("Past bookings cannot be cancelled"), { cause: 400 });
+    }
+
+    booking.status = 'cancelled';
+    await booking.save();
+
+    let promotedBooking = null;
+    if (booking.tableNumber) {
+        promotedBooking = await promoteWaitlist(booking.tableNumber, booking.startTime, booking.endTime);
+    }
+
+    const updatedBooking = await dbService.findOne({
+        model: BookingModel,
+        filter: { _id: booking._id },
+        populate: restaurantBookingPopulate,
+    });
+
+    emitBookingRealtimeUpdate({
+        resource: "restaurant",
+        action: "cancelled",
+        userId: booking.user,
+        bookingId: booking._id,
+        source: "website",
+    });
+
+    if (promotedBooking?.user?.id) {
+        emitBookingRealtimeUpdate({
+            resource: "restaurant",
+            action: "promoted",
+            userId: promotedBooking.user.id,
+            bookingId: promotedBooking._id,
+            source: "website",
+        });
+    }
+
+    return successResponse({
+        res,
+        status: 200,
+        message: "Restaurant booking cancelled successfully",
+        data: { booking: normalizeRestaurantBooking(updatedBooking) },
+    });
 });
 
 // GET ALL RESTAURANT BOOKINGS
 export const getAllBookings = asyncHandler(async (req, res) => {
     const bookings = await dbService.findAll({
         model: BookingModel,
-        populate: [{ path: 'user', select: 'userName email phoneNumber' }],
+        populate: restaurantBookingPopulate,
         sort: '-createdAt',
     });
 
@@ -190,7 +344,7 @@ export const getAllBookings = asyncHandler(async (req, res) => {
         res,
         status: 200,
         message: "Restaurant bookings retrieved successfully",
-        data: { bookings },
+        data: { bookings: bookings.map(normalizeRestaurantBooking) },
     });
 });
 
@@ -214,9 +368,10 @@ export const updateBookingStatus = asyncHandler(async (req, res, next) => {
 
     booking.status = status;
 
+    let promotedBooking = null;
     if (status === 'cancelled' && booking.tableNumber) {
         await booking.save();
-        await promoteWaitlist(booking.tableNumber, booking.startTime, booking.endTime);
+        promotedBooking = await promoteWaitlist(booking.tableNumber, booking.startTime, booking.endTime);
     } else {
         await booking.save();
     }
@@ -224,13 +379,31 @@ export const updateBookingStatus = asyncHandler(async (req, res, next) => {
     const updatedBooking = await dbService.findOne({
         model: BookingModel,
         filter: { _id: booking._id },
-        populate: [{ path: 'user', select: 'userName email phoneNumber' }],
+        populate: restaurantBookingPopulate,
     });
+
+    emitBookingRealtimeUpdate({
+        resource: "restaurant",
+        action: "updated",
+        userId: booking.user,
+        bookingId: booking._id,
+        source: "dashboard",
+    });
+
+    if (promotedBooking?.user?.id) {
+        emitBookingRealtimeUpdate({
+            resource: "restaurant",
+            action: "promoted",
+            userId: promotedBooking.user.id,
+            bookingId: promotedBooking._id,
+            source: "dashboard",
+        });
+    }
 
     return successResponse({
         res,
         status: 200,
         message: "Restaurant booking updated successfully",
-        data: { booking: updatedBooking },
+        data: { booking: normalizeRestaurantBooking(updatedBooking) },
     });
 });

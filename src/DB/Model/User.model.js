@@ -55,6 +55,14 @@ export const userSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    cartItems: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
+    wishlistItems: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
     deletedAt: Date,
     bannedAt: Date,
     updatedBy: {

@@ -35,7 +35,7 @@ bookingRouter.post(
 // Update booking (guests, specialRequests, paymentMethod — pending only)
 bookingRouter.patch(
   "/:id",
-  userAuth,
+  authentication(),
   validation(bookingValidator.updateBookingSchema),
   bookingService.updateBooking
 );

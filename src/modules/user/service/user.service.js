@@ -2,8 +2,59 @@ import { asyncHandler } from "../../../utils/response/error.response.js";
 import * as dbService from "../../../DB/db.service.js";
 import { roleTypes, userModel } from "../../../DB/Model/User.model.js";
 import { successResponse } from "../../../utils/response/success.response.js";
+import cloudinary from "../../../utils/multer/cloudinary.js";
 
-const userSelect = "-password -OTP -__v";
+const userSelect = "-password -OTP -__v -cartItems -wishlistItems";
+const preferenceSelect = "cartItems wishlistItems";
+
+const sanitizePreferenceItems = (items) => (Array.isArray(items) ? items : []);
+
+const parseBooleanField = (value) => {
+  if (value === undefined) return undefined;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value === "true") return true;
+    if (value === "false") return false;
+  }
+  return undefined;
+};
+
+const extractCloudinaryPublicId = (imageUrl) => {
+  if (typeof imageUrl !== "string" || !imageUrl.includes("res.cloudinary.com")) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(imageUrl);
+    const uploadMarker = "/upload/";
+    const uploadIndex = parsedUrl.pathname.indexOf(uploadMarker);
+
+    if (uploadIndex === -1) {
+      return null;
+    }
+
+    let publicId = parsedUrl.pathname.slice(uploadIndex + uploadMarker.length);
+    publicId = publicId.replace(/^v\d+\//, "");
+
+    const extensionIndex = publicId.lastIndexOf(".");
+    if (extensionIndex !== -1) {
+      publicId = publicId.slice(0, extensionIndex);
+    }
+
+    return decodeURIComponent(publicId);
+  } catch {
+    return null;
+  }
+};
+
+const destroyCloudinaryImage = async (imageUrl) => {
+  const publicId = extractCloudinaryPublicId(imageUrl);
+  if (!publicId) {
+    return;
+  }
+
+  await cloudinary.uploader.destroy(publicId).catch(() => null);
+};
 
 const normalizeUser = (user) => {
   if (!user) return null;
@@ -14,8 +65,10 @@ const normalizeUser = (user) => {
     userName: item.userName,
     email: item.email,
     role: item.role,
+    provider: item.provider,
     gender: item.gender,
     country: item.country,
+    DOB: item.DOB,
     phoneNumber: item.phoneNumber ?? "",
     isConfirmed: Boolean(item.isConfirmed),
     image: item.image ?? "",
@@ -33,19 +86,100 @@ export const userData = asyncHandler(async (req, res, next) => {
   return successResponse({ res, data: { user } });
 });
 
+export const getPreferences = asyncHandler(async (req, res) => {
+  const user = await userModel.findById(req.user._id).select(preferenceSelect);
+
+  return successResponse({
+    res,
+    data: {
+      cartItems: sanitizePreferenceItems(user?.cartItems),
+      wishlistItems: sanitizePreferenceItems(user?.wishlistItems),
+    },
+  });
+});
+
+export const updateProfile = asyncHandler(async (req, res) => {
+  const shouldRemoveImage = parseBooleanField(req.body.removeImage);
+  const currentImage = req.user?.image || "";
+  const updateData = {
+    ...(req.body.userName !== undefined && { userName: req.body.userName }),
+    ...(req.body.country !== undefined && { country: req.body.country }),
+    ...(req.body.gender !== undefined && { gender: req.body.gender }),
+    ...(req.body.phoneNumber !== undefined && { phoneNumber: req.body.phoneNumber || "" }),
+    ...(req.body.DOB !== undefined && {
+      DOB: req.body.DOB ? new Date(req.body.DOB) : null,
+    }),
+  };
+
+  if (req.file) {
+    await destroyCloudinaryImage(currentImage);
+    const { secure_url } = await cloudinary.uploader.upload(req.file.path, {
+      folder: `${process.env.APP_NAME}/users`,
+    });
+    updateData.image = secure_url;
+  } else if (shouldRemoveImage) {
+    await destroyCloudinaryImage(currentImage);
+    updateData.image = "";
+  } else if (req.body.image !== undefined) {
+    const nextImage = req.body.image || "";
+
+    if (currentImage && currentImage !== nextImage) {
+      await destroyCloudinaryImage(currentImage);
+    }
+
+    updateData.image = nextImage;
+  }
+
+  const user = await userModel
+    .findByIdAndUpdate(req.user._id, updateData, {
+      new: true,
+      runValidators: true,
+    })
+    .select(userSelect);
+
+  return successResponse({
+    res,
+    message: "Profile updated successfully",
+    data: { user: normalizeUser(user) },
+  });
+});
+
+export const updatePreferences = asyncHandler(async (req, res) => {
+  const updateData = {};
+
+  if (req.body.cartItems !== undefined) {
+    updateData.cartItems = sanitizePreferenceItems(req.body.cartItems);
+  }
+
+  if (req.body.wishlistItems !== undefined) {
+    updateData.wishlistItems = sanitizePreferenceItems(req.body.wishlistItems);
+  }
+
+  const user = await userModel
+    .findByIdAndUpdate(req.user._id, updateData, {
+      new: true,
+      runValidators: true,
+    })
+    .select(preferenceSelect);
+
+  return successResponse({
+    res,
+    message: "Preferences updated successfully",
+    data: {
+      cartItems: sanitizePreferenceItems(user?.cartItems),
+      wishlistItems: sanitizePreferenceItems(user?.wishlistItems),
+    },
+  });
+});
+
 //delete account
 export const deleteAccount = asyncHandler(
     async (req, res, next) => {
-        const user = await dbService.findOneAndUpdate({
-            model: userModel,
-            filter: {
-                _id: req.user._id,
-                deletedAt: null
-            },
-            options: { new: true },
-            data: { deletedAt: Date.now() },
-        })
-        return successResponse({ res, message: "Account Freeze successfully" })
+        const user = await userModel.findByIdAndDelete(req.user._id)
+        if (!user) {
+          return next(new Error("Account not found", { cause: 404 }));
+        }
+        return successResponse({ res, message: "Account deleted successfully" })
     }
 )
 

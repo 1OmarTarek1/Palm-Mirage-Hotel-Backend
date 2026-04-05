@@ -2,6 +2,8 @@ import joi from "joi";
 import { roleTypes, genderTypes } from "../../DB/Model/User.model.js";
 import { generalFields } from "../../middleware/validation.middleware.js";
 
+const preferenceItem = joi.object().unknown(true);
+
 export const createAdminUser = joi.object({
   userName: generalFields.username.required(),
   email: generalFields.email.required(),
@@ -30,6 +32,26 @@ export const updateAdminUser = joi.object({
 export const adminUserIdParam = joi.object({
   userId: generalFields.id.required(),
 });
+
+export const updatePreferences = joi
+  .object({
+    cartItems: joi.array().items(preferenceItem).optional(),
+    wishlistItems: joi.array().items(preferenceItem).optional(),
+  })
+  .or("cartItems", "wishlistItems");
+
+export const updateProfile = joi
+  .object({
+    userName: generalFields.username.optional(),
+    country: generalFields.country.optional(),
+    gender: joi.string().valid(...Object.values(genderTypes)).optional(),
+    phoneNumber: joi.string().allow("", null),
+    DOB: joi.date().optional().allow(null, ""),
+    image: joi.string().uri().allow("", null),
+    removeImage: joi.boolean().truthy("true").falsy("false").optional(),
+    file: generalFields.file.optional(),
+  })
+  .or("userName", "country", "gender", "phoneNumber", "DOB", "image", "removeImage", "file");
 
 // export const updateBasicProfile = joi.object().keys({
 //     mobileNumber: generalFields.phone,

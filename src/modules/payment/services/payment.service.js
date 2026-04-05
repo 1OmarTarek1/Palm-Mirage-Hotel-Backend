@@ -10,6 +10,7 @@ import {
 import { getAllowedOrigins } from "../../../config/origins.js";
 import { UserBooking } from "../../../DB/Model/UserBooking.model.js";
 import { emitSocketEvent } from "../../../socket/index.js";
+import { emitBookingRealtimeUpdate } from "../../../socket/bookingRealtime.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const checkoutCurrency = (process.env.STRIPE_CURRENCY || "usd").toLowerCase();
@@ -193,13 +194,24 @@ const finalizePaidCheckout = async (stripeSession) => {
       checkoutSessionDoc.bookingNotes || "Booked from Website / Stripe Checkout",
   }));
 
-  await UserBooking.insertMany(bookingPayload, { ordered: true });
+  const createdBookings = await UserBooking.insertMany(bookingPayload, { ordered: true });
 
   checkoutSessionDoc.status = "fulfilled";
   checkoutSessionDoc.fulfilledAt = new Date();
   checkoutSessionDoc.failureReason = undefined;
   await checkoutSessionDoc.save();
   emitCheckoutState(checkoutSessionDoc);
+  emitBookingRealtimeUpdate({
+    resource: "room",
+    action: "created",
+    userId: checkoutSessionDoc.user,
+    bookingIds: createdBookings.map((booking) => booking._id),
+    source: "stripe_checkout",
+    metadata: {
+      checkoutId: checkoutSessionDoc._id,
+      paymentStatus: checkoutSessionDoc.stripePaymentStatus,
+    },
+  });
 
   return checkoutSessionDoc;
 };

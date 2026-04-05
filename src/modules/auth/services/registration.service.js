@@ -9,7 +9,11 @@ export const signup = asyncHandler(async (req, res, next) => {
   const { userName, country, email, password, phoneNumber } = req.body;
 console.log({ userName, country, email, password, phoneNumber });
 
-  if (await dbService.findOne({ model: userModel, filter: { email } })) {
+  const existingUser = await dbService.findOne({ model: userModel, filter: { email } });
+
+  if (existingUser?.deletedAt) {
+    await userModel.findByIdAndDelete(existingUser._id);
+  } else if (existingUser) {
     return next(new Error("Email exists"), { cause: 409 });
   }
   const user = await dbService.create({
@@ -22,7 +26,7 @@ console.log({ userName, country, email, password, phoneNumber });
 // confirmEmail
 export const confirmEmail = asyncHandler(async (req, res, next) => {
   const { code, email } = req.body;
-  const user = await dbService.findOne({ model: userModel, filter: { email } });
+  const user = await dbService.findOne({ model: userModel, filter: { email, deletedAt: null } });
 
   if (!user) {
     return next(new Error("Email not exists"), { cause: 404 });

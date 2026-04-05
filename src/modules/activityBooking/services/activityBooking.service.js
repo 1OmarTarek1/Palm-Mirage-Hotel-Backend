@@ -5,6 +5,7 @@ import * as dbService from "../../../DB/db.service.js";
 import { paginate } from "../../../utils/pagination/pagination.js";
 import { asyncHandler } from "../../../utils/response/error.response.js";
 import { successResponse } from "../../../utils/response/success.response.js";
+import { emitBookingRealtimeUpdate } from "../../../socket/bookingRealtime.js";
 
 const activeBookingStatuses = ["pending", "confirmed", "completed"];
 
@@ -137,6 +138,14 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     .findById(booking._id)
     .populate(bookingPopulate);
 
+  emitBookingRealtimeUpdate({
+    resource: "activity",
+    action: "created",
+    userId: req.user._id,
+    bookingId: booking._id,
+    source: "website",
+  });
+
   return successResponse({
     res,
     status: 201,
@@ -256,6 +265,14 @@ export const updateBookingStatus = asyncHandler(async (req, res, next) => {
     .findById(booking._id)
     .populate(bookingPopulate);
 
+  emitBookingRealtimeUpdate({
+    resource: "activity",
+    action: "updated",
+    userId: booking.user,
+    bookingId: booking._id,
+    source: "dashboard",
+  });
+
   return successResponse({
     res,
     message: "Activity booking updated successfully",
@@ -278,6 +295,10 @@ export const cancelMyBooking = asyncHandler(async (req, res, next) => {
     return next(new Error("Booking is already inactive", { cause: 400 }));
   }
 
+  if (booking.paymentStatus === "paid") {
+    return next(new Error("Paid bookings cannot be cancelled from your account", { cause: 400 }));
+  }
+
   await restoreSeatsIfNeeded(booking);
   booking.status = "cancelled";
   booking.cancellationReason = req.body.cancellationReason ?? "";
@@ -286,6 +307,14 @@ export const cancelMyBooking = asyncHandler(async (req, res, next) => {
   const populatedBooking = await activityBookingModel
     .findById(booking._id)
     .populate(bookingPopulate);
+
+  emitBookingRealtimeUpdate({
+    resource: "activity",
+    action: "cancelled",
+    userId: booking.user,
+    bookingId: booking._id,
+    source: "website",
+  });
 
   return successResponse({
     res,
