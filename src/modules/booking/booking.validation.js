@@ -97,6 +97,20 @@ export const cancelBookingSchema = Joi.object({
 
 // Admin - Get All Bookings 
 export const getAllBookingsSchema = Joi.object({
+  /** Omit room image URLs — smaller payload for dashboard aggregates */
+  summary: Joi.string().valid("1").optional(),
+
+  /** Compact server-side aggregates for the admin dashboard (ignores summary / list pagination) */
+  dashboard: Joi.string().valid("1").optional(),
+
+  /** UTC calendar day YYYY-MM-DD; should match dashboard client (e.g. new Date().toISOString().slice(0, 10)) */
+  today: Joi.string()
+    .pattern(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+
+  /** Comma-separated YYYY-MM-DD keys, oldest→newest (7 values), aligned with dashboard trend chart */
+  weekKeys: Joi.string().max(120).optional(),
+
   page: Joi.number().min(1).default(1),
 
   size: Joi.number().min(1).max(100).default(10),

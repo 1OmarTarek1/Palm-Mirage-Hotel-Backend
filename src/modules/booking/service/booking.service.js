@@ -18,6 +18,137 @@ const roomBookingPopulate = [
   { path: "user", select: "userName email" },
 ];
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseWeekKeysParam(raw, todayStr) {
+  if (typeof raw === "string" && raw.trim()) {
+    const keys = raw
+      .split(",")
+      .map((k) => k.trim())
+      .filter((k) => ISO_DAY.test(k));
+    if (keys.length === 7) return keys;
+  }
+  const [y, m, d] = todayStr.split("-").map(Number);
+  const anchor = new Date(Date.UTC(y, m - 1, d));
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(anchor);
+    x.setUTCDate(anchor.getUTCDate() - (6 - i));
+    return x.toISOString().slice(0, 10);
+  });
+}
+
+async function getRoomBookingDashboardPayload(todayStr, weekKeys) {
+  const utcCheckInDay = {
+    $dateToString: { format: "%Y-%m-%d", date: "$checkInDate", timezone: "UTC" },
+  };
+  const utcCheckOutDay = {
+    $dateToString: { format: "%Y-%m-%d", date: "$checkOutDate", timezone: "UTC" },
+  };
+
+  const [facetResult] = await UserBooking.aggregate([
+    {
+      $facet: {
+        arrivalsToday: [
+          { $match: { $expr: { $eq: [utcCheckInDay, todayStr] } } },
+          { $count: "c" },
+        ],
+        departuresToday: [
+          { $match: { $expr: { $eq: [utcCheckOutDay, todayStr] } } },
+          { $count: "c" },
+        ],
+        pendingRoomBookings: [{ $match: { status: "pending" } }, { $count: "c" }],
+        unpaidRoomBookings: [{ $match: { paymentStatus: "unpaid" } }, { $count: "c" }],
+        noShowBookings: [{ $match: { status: "no-show" } }, { $count: "c" }],
+        checkedInGuests: [{ $match: { status: "checked-in" } }, { $count: "c" }],
+        todayRoomRevenue: [
+          {
+            $match: {
+              $and: [
+                { $expr: { $eq: [utcCheckInDay, todayStr] } },
+                { $or: [{ paymentStatus: "paid" }, { status: "checked-in" }] },
+              ],
+            },
+          },
+          { $group: { _id: null, total: { $sum: "$totalPrice" } } },
+        ],
+        byStatus: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
+        revenueByCreatedDay: [
+          {
+            $group: {
+              _id: {
+                $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "UTC" },
+              },
+              total: { $sum: "$totalPrice" },
+            },
+          },
+        ],
+      },
+    },
+  ]);
+
+  const count = (arr) => (Array.isArray(arr) && arr[0]?.c != null ? arr[0].c : 0);
+  const revenueMap = Object.fromEntries(
+    (facetResult.revenueByCreatedDay || []).map((row) => [row._id, row.total ?? 0])
+  );
+  const roomRevenueByDay = weekKeys.map((k) => revenueMap[k] ?? 0);
+
+  const statusToClient = {
+    pending: "pending",
+    confirmed: "confirmed",
+    "checked-in": "checkedIn",
+    completed: "completed",
+    cancelled: "cancelled",
+    "no-show": "noShow",
+  };
+  const bookingStatusCounts = {
+    pending: 0,
+    confirmed: 0,
+    checkedIn: 0,
+    completed: 0,
+    cancelled: 0,
+    noShow: 0,
+  };
+  for (const row of facetResult.byStatus || []) {
+    const key = statusToClient[row._id];
+    if (key) bookingStatusCounts[key] = row.count ?? 0;
+  }
+
+  const todayRevRow = facetResult.todayRoomRevenue?.[0];
+  const todayRoomRevenue = todayRevRow?.total ?? 0;
+
+  const recentRaw = await UserBooking.find({})
+    .sort({ createdAt: -1 })
+    .limit(4)
+    .populate({ path: "user", select: "userName" })
+    .populate({ path: "room", select: "roomNumber" })
+    .select("status nights totalPrice createdAt user room")
+    .lean();
+
+  const recentRoomBookings = recentRaw.map((b) => ({
+    id: String(b._id),
+    guestName: b.user?.userName || "Guest",
+    roomNumber: b.room?.roomNumber ?? 0,
+    nights: b.nights ?? 0,
+    status: b.status,
+    totalPrice: b.totalPrice ?? 0,
+  }));
+
+  return {
+    today: todayStr,
+    weekKeys,
+    arrivalsToday: count(facetResult.arrivalsToday),
+    departuresToday: count(facetResult.departuresToday),
+    pendingRoomBookings: count(facetResult.pendingRoomBookings),
+    unpaidRoomBookings: count(facetResult.unpaidRoomBookings),
+    noShowBookings: count(facetResult.noShowBookings),
+    checkedInGuests: count(facetResult.checkedInGuests),
+    todayRoomRevenue,
+    bookingStatusCounts,
+    roomRevenueByDay,
+    recentRoomBookings,
+  };
+}
+
 const loadBookingWithRelations = (bookingId) =>
   dbService.findOne({
     model: UserBooking,
@@ -333,9 +464,31 @@ export const updateBooking = asyncHandler(async (req, res, next) => {
 
 // Admin: Get All Bookings
 export const getAllBookings = asyncHandler(async (req, res) => {
+  if (req.query.dashboard === "1") {
+    const todayStr =
+      typeof req.query.today === "string" && ISO_DAY.test(req.query.today)
+        ? req.query.today
+        : new Date().toISOString().slice(0, 10);
+    const weekKeys = parseWeekKeysParam(req.query.weekKeys, todayStr);
+    const payload = await getRoomBookingDashboardPayload(todayStr, weekKeys);
+    return successResponse({
+      res,
+      data: payload,
+      message: "Dashboard booking metrics retrieved successfully",
+    });
+  }
+
+  const summary = req.query.summary === "1";
+  const populate = summary
+    ? [
+        { path: "room", select: "roomName roomNumber roomType price" },
+        { path: "user", select: "userName email" },
+      ]
+    : roomBookingPopulate;
+
   const bookings = await dbService.findAll({
     model: UserBooking,
-    populate: roomBookingPopulate,
+    populate,
     sort: "-createdAt",
   });
 
