@@ -1,5 +1,3 @@
-
-
 export const asyncHandler = (fun) => {
     return (req, res, next) => {
         fun(req, res, next).catch(error => {
@@ -9,14 +7,21 @@ export const asyncHandler = (fun) => {
     }
 }
 
-
-
 export const globalErrorHandling = (error, req, res, next) => {
-    if (process.env.MOOD === "DEV") {
-        return res.status(error.cause || 400).json({ message: error.message, error, stack: error.stack })
+    const isProduction = process.env.NODE_ENV === "production";
+    
+    if (!isProduction) {
+        return res.status(error.cause || 400).json({ 
+            message: error.message, 
+            error, 
+            stack: error.stack 
+        });
     }
-    return res.status(error.cause || 400).json({ message: error.message, error })
-
+    
+    return res.status(error.cause || 400).json({ 
+        message: error.message, 
+        error 
+    });
 }
 
 export const createUnauthorizedError = (
