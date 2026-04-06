@@ -19,7 +19,7 @@ const PROD_ORIGINS = [
 // Additional origins can be injected at runtime via ALLOWED_ORIGINS env var
 // (comma-separated) — useful for staging / PR previews without code changes.
 export const getAllowedOrigins = () => {
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = process.env.NODE_ENV?.trim().toLowerCase() === "production";
   const base = isProd ? PROD_ORIGINS : [...DEV_ORIGINS, ...PROD_ORIGINS];
 
   const extraOrigins = (process.env.ALLOWED_ORIGINS || "")
