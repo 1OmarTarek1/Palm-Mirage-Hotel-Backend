@@ -99,6 +99,19 @@ export const login = asyncHandler(async (req, res, next) => {
     data: {
       role: user.role,
       accessToken,
+      user: {
+        _id: user._id,
+        userName: user.userName,
+        email: user.email,
+        image: user.image,
+        provider: user.provider,
+        gender: user.gender,
+        DOB: user.DOB,
+        phoneNumber: user.phoneNumber,
+        country: user.country,
+        role: user.role,
+        createdAt: user.createdAt
+      }
     },
   });
 });
@@ -161,6 +174,19 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
     status: 200,
     data: {
       accessToken,
+      user: {
+        _id: user._id,
+        userName: user.userName,
+        email: user.email,
+        image: user.image,
+        provider: user.provider,
+        gender: user.gender,
+        DOB: user.DOB,
+        phoneNumber: user.phoneNumber,
+        country: user.country,
+        role: user.role,
+        createdAt: user.createdAt
+      },
       isNewUser: !user.createdAt || Date.now() - new Date(user.createdAt).getTime() < 5000,
     },
   });
