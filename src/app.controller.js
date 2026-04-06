@@ -19,33 +19,16 @@ import menuController from './modules/menu/menu.controller.js'
 import notificationController from './modules/notification/notification.controller.js';
 import { allowOrigin } from './config/origins.js';
 
-const parseCookies = (cookieHeader = '') =>
-  cookieHeader
-    .split(';')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .reduce((acc, part) => {
-      const separatorIndex = part.indexOf('=');
-      if (separatorIndex === -1) return acc;
-
-      const key = part.slice(0, separatorIndex).trim();
-      const value = decodeURIComponent(part.slice(separatorIndex + 1).trim());
-      acc[key] = value;
-      return acc;
-    }, {});
+import cookieParser from 'cookie-parser';
 
 const bootstrap = (app, express) => {
+  app.use(cookieParser());
   app.use(
     cors({
       origin: allowOrigin,
       credentials: true,
     })
   );
-
-  app.use((req, res, next) => {
-    req.cookies = parseCookies(req.headers.cookie);
-    next();
-  });
 
   app.post(
     "/payment/webhook",
