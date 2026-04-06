@@ -5,10 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"node --watch index.js\" \"node src/utils/deleteExpierOTP/cron.js\"",
-    "seed:local": "node scripts/seed-local-data.js",
-    "backfill:restaurant-payment": "node scripts/backfill-restaurant-booking-payment.js",
-    "seed:room-bookings": "node scripts/seed-room-bookings.js",
-    "seed:room-amenities": "node scripts/seed-room-amenities.js"
+    "start": "node index.js",
+    "cron": "node src/utils/deleteExpierOTP/cron.js"
   },
   "keywords": [],
   "author": "",
