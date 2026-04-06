@@ -7,21 +7,27 @@ import { emailEvent } from "../../../utils/event/email.event.js";
 import { decodeToken, generateToken, tokenTypes } from "../../../utils/security/token.security.js";
 import { OAuth2Client } from "google-auth-library";
 
-const buildRefreshCookieOptions = () => ({
-  httpOnly: true,
-  sameSite: "lax",
-  secure: process.env.MOOD !== "DEV",
-  maxAge: 365 * 24 * 60 * 60 * 1000,
-  path: "/auth/refresh-token",
-});
+const buildRefreshCookieOptions = () => {
+  const isDev = process.env.MOOD === "DEV";
+  return {
+    httpOnly: true,
+    sameSite: isDev ? "lax" : "none",
+    secure: !isDev,
+    maxAge: 365 * 24 * 60 * 60 * 1000,
+    path: "/auth/refresh-token",
+  };
+};
 
-const buildAccessCookieOptions = () => ({
-  httpOnly: true,
-  sameSite: "lax",
-  secure: process.env.MOOD !== "DEV",
-  maxAge: 24 * 60 * 60 * 1000,
-  path: "/",
-});
+const buildAccessCookieOptions = () => {
+  const isDev = process.env.MOOD === "DEV";
+  return {
+    httpOnly: true,
+    sameSite: isDev ? "lax" : "none",
+    secure: !isDev,
+    maxAge: 24 * 60 * 60 * 1000,
+    path: "/",
+  };
+};
 
 const attachRefreshTokenCookie = (res, refreshToken) => {
   res.cookie("refreshToken", refreshToken, buildRefreshCookieOptions());
