@@ -6,12 +6,6 @@ export const authentication = () => {
     return asyncHandler(async (req, res, next) => {
         const cookieAccessToken = req.cookies?.accessToken
         const authorization = cookieAccessToken ? `Bearer ${cookieAccessToken}` : req.headers.authorization
-        
-        console.log("[Authentication Middleware] Auth found:", {
-            hasCookie: !!cookieAccessToken,
-            hasHeader: !!req.headers.authorization,
-            finalAuthPresent: !!authorization
-        });
 
         req.user = await decodeToken({ authorization, next })
         return next()

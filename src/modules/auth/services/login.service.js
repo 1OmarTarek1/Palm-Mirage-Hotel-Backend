@@ -8,7 +8,7 @@ import { decodeToken, generateToken, tokenTypes } from "../../../utils/security/
 import { OAuth2Client } from "google-auth-library";
 
 const buildRefreshCookieOptions = () => {
-  const isProd = process.env.NODE_ENV?.trim().toLowerCase() === "production";
+  const isProd = process.env.NODE_ENV?.trim().toLowerCase() === "production" || process.env.RAILWAY_ENVIRONMENT;
   return {
     httpOnly: true,
     sameSite: isProd ? "none" : "lax",
@@ -19,7 +19,7 @@ const buildRefreshCookieOptions = () => {
 };
 
 const buildAccessCookieOptions = () => {
-  const isProd = process.env.NODE_ENV?.trim().toLowerCase() === "production";
+  const isProd = process.env.NODE_ENV?.trim().toLowerCase() === "production" || process.env.RAILWAY_ENVIRONMENT;
   return {
     httpOnly: true,
     sameSite: isProd ? "none" : "lax",
@@ -187,6 +187,10 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
     tokenType: tokenTypes.refresh,
     next,
   });
+
+  if (!user) {
+    return; // Stop if decodeToken triggered an error via next()
+  }
 
   const accessToken = generateToken({
     payload: { id: user._id },

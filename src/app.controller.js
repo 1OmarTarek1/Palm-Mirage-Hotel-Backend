@@ -23,10 +23,6 @@ import cookieParser from 'cookie-parser';
 
 const bootstrap = (app, express) => {
   app.use(cookieParser());
-  app.use((req, res, next) => {
-    console.log(`[Request-Log] Path: ${req.path} | Origin: ${req.headers.origin} | HasCookies: ${!!req.headers.cookie}`);
-    next();
-  });
   app.use(
     cors({
       origin: allowOrigin,
