@@ -1,8 +1,7 @@
-import "./src/utils/deleteExpierOTP/cron.js";
+import './src/config/env.js';
+import './src/utils/deleteExpierOTP/cron.js';
 import path from 'node:path'
 import http from 'node:http'
-import * as dotenv from 'dotenv'
-dotenv.config({ path: path.resolve("./src/config/.env.dev") })
 import bootstrap from './src/app.controller.js'
 import express from 'express'
 import { initializeSocket } from './src/socket/index.js'

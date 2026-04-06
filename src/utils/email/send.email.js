@@ -20,7 +20,7 @@ export const sendEmail = async ({ to = [], cc = [], bcc = [], subject = "Route",
     });
 
     const info = await transporter.sendMail({
-        from: `"Jop Search App" <${process.env.EMAIL}>`,
+        from: `"Palm Mirage Hotel" <${process.env.EMAIL}>`,
         to,
         subject,
         text,
