@@ -99,6 +99,7 @@ export const login = asyncHandler(async (req, res, next) => {
     data: {
       role: user.role,
       accessToken,
+      refreshToken, // Include refresh token for Website
       user: {
         _id: user._id,
         userName: user.userName,
@@ -174,6 +175,7 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
     status: 200,
     data: {
       accessToken,
+      refreshToken, // Include refresh token for Website
       user: {
         _id: user._id,
         userName: user.userName,
