@@ -8,7 +8,7 @@ import { decodeToken, generateToken, tokenTypes } from "../../../utils/security/
 import { OAuth2Client } from "google-auth-library";
 
 const buildRefreshCookieOptions = () => {
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = process.env.NODE_ENV?.trim().toLowerCase() === "production";
   return {
     httpOnly: true,
     sameSite: isProd ? "none" : "lax",
@@ -19,7 +19,7 @@ const buildRefreshCookieOptions = () => {
 };
 
 const buildAccessCookieOptions = () => {
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = process.env.NODE_ENV?.trim().toLowerCase() === "production";
   return {
     httpOnly: true,
     sameSite: isProd ? "none" : "lax",

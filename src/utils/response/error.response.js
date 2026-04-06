@@ -8,7 +8,7 @@ export const asyncHandler = (fun) => {
 }
 
 export const globalErrorHandling = (error, req, res, next) => {
-    const isProduction = process.env.NODE_ENV === "production";
+    const isProduction = process.env.NODE_ENV?.trim().toLowerCase() === "production";
     
     if (!isProduction) {
         return res.status(error.cause || 400).json({ 
