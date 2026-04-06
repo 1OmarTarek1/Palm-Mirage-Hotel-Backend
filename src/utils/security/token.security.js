@@ -53,8 +53,9 @@ export const decodeToken = async ({ authorization = "", tokenType = tokenTypes.a
 export const generateToken = ({
   payload = {},
   signature = process.env.USER_ACCESS_TOKEN,
-  expiresIn = parseInt(process.env.EXPIRESIN),
+  expiresIn = parseInt(process.env.EXPIRESIN) || 86400,
 } = {}) => {
+  console.log("[generateToken] expiresIn:", expiresIn, "| hasSignature:", !!signature);
   const token = jwt.sign(payload, signature, { expiresIn });
   return token;
 };
