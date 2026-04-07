@@ -4,6 +4,7 @@ import * as dbService from '../../../DB/db.service.js';
 import { menuModel } from '../../../DB/Model/Menu.model.js';
 import { restaurantPageModel } from '../../../DB/Model/RestaurantPage.model.js';
 import cloud from '../../../utils/multer/cloudinary.js';
+import { paginate } from '../../../utils/pagination/pagination.js';
 
 const SECTION_ID_BY_LABEL = {
   Appetizer: 'appetizer',
@@ -87,23 +88,30 @@ export const getAllMenuItems = asyncHandler(async (req, res, next) => {
     name_desc: { name: -1 },
   };
   const sortBy = sortOptions[sort] || { createdAt: -1 };
-  const skip = (Number(page) - 1) * Number(limit);
-
-  const [items, total] = await Promise.all([
-    menuModel.find(filter).sort(sortBy).skip(skip).limit(Number(limit)),
-    menuModel.countDocuments(filter),
-  ]);
+  const result = await paginate({
+    page: Number(page) || 1,
+    size: Number(limit) || 10,
+    model: menuModel,
+    filter,
+    sort: sortBy,
+  });
 
   return successResponse({
     res,
     data: {
-      items,
+      items: result.data,
       pagination: {
-        total,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(total / Number(limit)),
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.totalPages,
       },
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      totalPages: result.totalPages,
+      hasNextPage: result.hasNextPage,
+      hasPrevPage: result.hasPrevPage,
     },
   });
 });

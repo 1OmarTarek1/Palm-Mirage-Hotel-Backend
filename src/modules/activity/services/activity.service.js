@@ -4,6 +4,7 @@ import * as dbService from "../../../DB/db.service.js";
 import { activityModel } from "../../../DB/Model/Activity.model.js";
 import cloudinary from "../../../utils/multer/cloudinary.js";
 import cloud from "../../../utils/multer/cloudinary.js";
+import { paginate } from "../../../utils/pagination/pagination.js";
 
 const parseArrayField = (value) => {
   if (!value) return undefined;
@@ -104,23 +105,30 @@ export const getAllActivities = asyncHandler(async (req, res, next) => {
   };
   const sortBy = sortOptions[sort] || { createdAt: -1 };
 
-  const skip = (Number(page) - 1) * Number(limit);
-
-  const [activities, total] = await Promise.all([
-    activityModel.find(filter).sort(sortBy).skip(skip).limit(Number(limit)),
-    activityModel.countDocuments(filter),
-  ]);
+  const result = await paginate({
+    page: Number(page) || 1,
+    size: Number(limit) || 10,
+    model: activityModel,
+    filter,
+    sort: sortBy,
+  });
 
   return successResponse({
     res,
     data: {
-      activities,
+      activities: result.data,
       pagination: {
-        total,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(total / Number(limit)),
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.totalPages,
       },
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      totalPages: result.totalPages,
+      hasNextPage: result.hasNextPage,
+      hasPrevPage: result.hasPrevPage,
     },
   });
 });

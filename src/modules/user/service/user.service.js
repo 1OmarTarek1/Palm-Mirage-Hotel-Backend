@@ -3,6 +3,7 @@ import * as dbService from "../../../DB/db.service.js";
 import { roleTypes, userModel } from "../../../DB/Model/User.model.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 import cloudinary from "../../../utils/multer/cloudinary.js";
+import { paginate } from "../../../utils/pagination/pagination.js";
 
 const userSelect = "-password -OTP -__v -cartItems -wishlistItems -restaurantCart";
 const preferenceSelect = "cartItems wishlistItems restaurantCart";
@@ -210,14 +211,50 @@ export const deleteAccount = asyncHandler(
 )
 
 export const getAllUsers = asyncHandler(async (req, res) => {
-  const users = await userModel
-    .find({ deletedAt: { $exists: false } })
-    .select(userSelect)
-    .sort({ createdAt: -1 });
+  const { page = 1, limit = 10, search, role, gender, isConfirmed, sort } = req.query;
+  const filter = { deletedAt: { $exists: false } };
+
+  if (role) filter.role = role;
+  if (gender) filter.gender = gender;
+  if (isConfirmed !== undefined) filter.isConfirmed = isConfirmed === "true";
+  if (search) {
+    filter.$or = [
+      { userName: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+      { country: { $regex: search, $options: "i" } },
+      { phoneNumber: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  const sortMap = {
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+    userName_asc: { userName: 1 },
+    userName_desc: { userName: -1 },
+  };
+  const result = await paginate({
+    page: Number(page) || 1,
+    size: Number(limit) || 10,
+    model: userModel,
+    filter,
+    select: userSelect,
+    sort: sortMap[sort] || { createdAt: -1 },
+  });
 
   return successResponse({
     res,
-    data: { users: users.map(normalizeUser) },
+    data: {
+      users: result.data.map(normalizeUser),
+      items: result.data.map(normalizeUser),
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasNextPage: result.hasNextPage,
+        hasPrevPage: result.hasPrevPage,
+      },
+    },
   });
 });
 

@@ -216,7 +216,7 @@ async function seedRooms(facilities, roomAmenities) {
     const price = base + floor * 85 + (i % 7) * 110 + (i % 3) * 55;
     const discount = [0, 0, 5, 8, 10, 12, 15][i % 7];
     const capacity = capacityForRoomType(roomType, i);
-    const rating = Math.round((3.5 + (i % 15) * 0.1 + (i % 4) * 0.05) * 10) / 10;
+    const rating = Math.min(5, Math.round((3.5 + (i % 15) * 0.1 + (i % 4) * 0.05) * 10) / 10);
     const reviewsCount = 8 + (i * 11) % 220;
     const viewsCount = 120 + (i * 37) % 4200;
     const hasOffer = i % 3 === 0;

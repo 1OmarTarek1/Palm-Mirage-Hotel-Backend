@@ -2,6 +2,7 @@ import * as dbService from "../../../DB/db.service.js";
 import { RoomAmenityModel } from "../../../DB/Model/RoomAmenity.model.js";
 import { asyncHandler } from "../../../utils/response/error.response.js";
 import { successResponse } from "../../../utils/response/success.response.js";
+import { paginate } from "../../../utils/pagination/pagination.js";
 
 function normalizeAmenityName(name = "") {
   return name.trim().replace(/\s+/g, " ");
@@ -40,14 +41,43 @@ export const createRoomAmenity = asyncHandler(async (req, res, next) => {
 });
 
 export const getAllRoomAmenities = asyncHandler(async (req, res) => {
-  const amenities = await dbService.findAll({
+  const { page = 1, limit = 10, search, sort } = req.query;
+  const filter = {};
+  if (search) {
+    filter.$or = [
+      { name: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+      { icon: { $regex: search, $options: "i" } },
+    ];
+  }
+  const sortMap = {
+    name_asc: { name: 1 },
+    name_desc: { name: -1 },
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+  };
+  const result = await paginate({
+    page: Number(page) || 1,
+    size: Number(limit) || 10,
     model: RoomAmenityModel,
-    sort: "name",
+    filter,
+    sort: sortMap[sort] || { name: 1 },
   });
 
   return successResponse({
     res,
-    data: { amenities },
+    data: {
+      amenities: result.data,
+      items: result.data,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasNextPage: result.hasNextPage,
+        hasPrevPage: result.hasPrevPage,
+      },
+    },
     message: "Room amenities retrieved successfully",
   });
 });

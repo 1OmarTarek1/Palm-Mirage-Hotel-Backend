@@ -153,11 +153,17 @@ export const getAllSchedules = asyncHandler(async (req, res) => {
     data: {
       schedules: result.data.map(normalizeScheduleForResponse),
       pagination: {
-        total: result.count,
+        total: result.total,
         page: result.page,
-        limit: result.size,
-        totalPages: Math.ceil(result.count / result.size),
+        limit: result.limit,
+        totalPages: result.totalPages,
       },
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      totalPages: result.totalPages,
+      hasNextPage: result.hasNextPage,
+      hasPrevPage: result.hasPrevPage,
     },
   });
 });

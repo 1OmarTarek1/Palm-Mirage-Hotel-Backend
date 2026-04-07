@@ -45,6 +45,8 @@ export const getAllRooms = asyncHandler(async (req, res, next) => {
     capacity,
     minRating,
     hasOffer,
+    search,
+    sort,
     page,
     limit,
   } = req.query;
@@ -65,12 +67,31 @@ export const getAllRooms = asyncHandler(async (req, res, next) => {
     if (minPrice) filter.price.$gte = Number(minPrice);
     if (maxPrice) filter.price.$lte = Number(maxPrice);
   }
+
+  if (search) {
+    filter.$or = [
+      { roomName: { $regex: search, $options: "i" } },
+      { roomType: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+      { roomNumber: Number.isNaN(Number(search)) ? -1 : Number(search) },
+    ];
+  }
+
+  const sortMap = {
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+    price_asc: { price: 1 },
+    price_desc: { price: -1 },
+    roomName_asc: { roomName: 1 },
+    roomName_desc: { roomName: -1 },
+  };
  
   const result = await paginate({
     page:  Number(page)  || 1,
     size:  Number(limit) || 10,
     model: RoomModel,
     filter,
+    sort: sortMap[sort] || { createdAt: -1 },
     populate: [
       {
         path:   "facilities",      
@@ -87,7 +108,19 @@ export const getAllRooms = asyncHandler(async (req, res, next) => {
  
   return successResponse({
     res,
-    data: result,
+    data: {
+      ...result,
+      rooms: result.data,
+      items: result.data,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasNextPage: result.hasNextPage,
+        hasPrevPage: result.hasPrevPage,
+      },
+    },
     message: "Rooms retrieved successfully",
   });
 });

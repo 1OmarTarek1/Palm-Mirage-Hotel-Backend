@@ -6,6 +6,7 @@ import { roleTypes } from "../../../DB/Model/User.model.js";
 import { successResponse } from "../../../utils/response/success.response.js";
 import { emitBookingRealtimeUpdate } from "../../../socket/bookingRealtime.js";
 import { appendBookingAudit } from "../../../utils/bookingAuditLog.util.js";
+import { paginate } from "../../../utils/pagination/pagination.js";
 import {
   dateRangesOverlap,
   getUnavailableRangesForRoom,
@@ -479,6 +480,7 @@ export const getAllBookings = asyncHandler(async (req, res) => {
   }
 
   const summary = req.query.summary === "1";
+  const { page = 1, limit = 10, search, status, paymentStatus, sort } = req.query;
   const populate = summary
     ? [
         { path: "room", select: "roomName roomNumber roomType price" },
@@ -486,15 +488,41 @@ export const getAllBookings = asyncHandler(async (req, res) => {
       ]
     : roomBookingPopulate;
 
-  const bookings = await dbService.findAll({
+  const filter = {};
+  if (status) filter.status = status;
+  if (paymentStatus) filter.paymentStatus = paymentStatus;
+  if (search) {
+    filter.$or = [{ specialRequests: { $regex: search, $options: "i" } }];
+  }
+  const sortMap = {
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+    checkIn_asc: { checkInDate: 1 },
+    checkIn_desc: { checkInDate: -1 },
+  };
+  const result = await paginate({
+    page: Number(page) || 1,
+    size: Number(limit) || 10,
     model: UserBooking,
+    filter,
     populate,
-    sort: "-createdAt",
+    sort: sortMap[sort] || { createdAt: -1 },
   });
 
   return successResponse({
     res,
-    data: bookings,
+    data: {
+      bookings: result.data,
+      items: result.data,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasNextPage: result.hasNextPage,
+        hasPrevPage: result.hasPrevPage,
+      },
+    },
     message: "All bookings retrieved successfully",
   });
 });

@@ -2,6 +2,7 @@ import * as dbService from "../../../DB/db.service.js";
 import { FacilityModel } from "../../../DB/Model/Facility.model.js";
 import { asyncHandler } from "../../../utils/response/error.response.js";
 import { successResponse } from "../../../utils/response/success.response.js";
+import { paginate } from "../../../utils/pagination/pagination.js";
 
 //  Create Facility
 export const createFacility = asyncHandler(async (req, res, next) => {
@@ -41,14 +42,45 @@ export const createFacility = asyncHandler(async (req, res, next) => {
 
 // Get All Facilities
 export const getAllFacilities = asyncHandler(async (req, res, next) => {
-  const facilities = await dbService.findAll({
+  const { page = 1, limit = 10, search, status, category, sort } = req.query;
+  const filter = {};
+  if (status) filter.status = status;
+  if (category) filter.category = category;
+  if (search) {
+    filter.$or = [
+      { name: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+      { location: { $regex: search, $options: "i" } },
+    ];
+  }
+  const sortMap = {
+    name_asc: { name: 1 },
+    name_desc: { name: -1 },
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+  };
+  const result = await paginate({
+    page: Number(page) || 1,
+    size: Number(limit) || 10,
     model: FacilityModel,
-    sort: "name",
+    filter,
+    sort: sortMap[sort] || { name: 1 },
   });
 
   return successResponse({
     res,
-    data: { facilities },
+    data: {
+      facilities: result.data,
+      items: result.data,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasNextPage: result.hasNextPage,
+        hasPrevPage: result.hasPrevPage,
+      },
+    },
     message: "Facilities retrieved successfully",
   });
 });

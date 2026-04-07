@@ -8,6 +8,7 @@ import { successResponse } from "../../../utils/response/success.response.js";
 import { emitBookingRealtimeUpdate } from "../../../socket/bookingRealtime.js";
 import { appendBookingAudit } from "../../../utils/bookingAuditLog.util.js";
 import { findActiveStayForUser } from "../../booking/service/booking.service.js";
+import { paginate } from "../../../utils/pagination/pagination.js";
 
 /** User + menu line details (name/image) for API responses */
 const restaurantBookingFullPopulate = [
@@ -479,17 +480,44 @@ export const cancelMyBooking = asyncHandler(async (req, res, next) => {
 });
 
 export const getAllBookings = asyncHandler(async (req, res) => {
-  const bookings = await dbService.findAll({
+  const { page = 1, limit = 10, search, status, paymentStatus, sort } = req.query;
+  const filter = {};
+  if (status) filter.status = status;
+  if (paymentStatus) filter.paymentStatus = paymentStatus;
+  if (search) {
+    filter.$or = [{ bookingMode: { $regex: search, $options: "i" } }];
+  }
+  const sortMap = {
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+    start_asc: { startTime: 1 },
+    start_desc: { startTime: -1 },
+  };
+  const result = await paginate({
+    page: Number(page) || 1,
+    size: Number(limit) || 10,
     model: BookingModel,
+    filter,
     populate: restaurantBookingFullPopulate,
-    sort: "-createdAt",
+    sort: sortMap[sort] || { createdAt: -1 },
   });
 
   return successResponse({
     res,
     status: 200,
     message: "Restaurant bookings retrieved successfully",
-    data: { bookings: bookings.map(normalizeRestaurantBooking) },
+    data: {
+      bookings: result.data.map(normalizeRestaurantBooking),
+      items: result.data.map(normalizeRestaurantBooking),
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasNextPage: result.hasNextPage,
+        hasPrevPage: result.hasPrevPage,
+      },
+    },
   });
 });
 
