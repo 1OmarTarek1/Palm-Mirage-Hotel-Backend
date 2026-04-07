@@ -10,10 +10,6 @@ export const tokenTypes = {
 export const decodeToken = async ({ authorization = "", tokenType = tokenTypes.access, next } = {}) => {
   const [bearer, token] = authorization?.split(" ") || [];
 
-  // Debug: Check if environment variables are loaded
-  console.log("[DEBUG] USER_ACCESS_TOKEN exists:", !!process.env.USER_ACCESS_TOKEN);
-  console.log("[DEBUG] USER_REFRESH_TOKEN exists:", !!process.env.USER_REFRESH_TOKEN);
-
   if (!bearer || !token) {
     return next(new Error("authorization is required or In-valid formate ", { cause: 400 }));
   }
@@ -33,15 +29,11 @@ export const decodeToken = async ({ authorization = "", tokenType = tokenTypes.a
       break;
   }
 
-  console.log("[DEBUG] Access signature:", accessSignature ? "loaded" : "missing");
-  console.log("[DEBUG] Refresh signature:", refreshSignature ? "loaded" : "missing");
-
   const decoded = verifyToken({
     token,
     signature: tokenType == tokenTypes.access ? accessSignature : refreshSignature,
   });
   if (!decoded?.id) {
-    console.log("[DEBUG] Token verification failed, decoded:", decoded);
     return next(new Error("In-valid  token payload", { cause: 400 }));
   }
   /////
