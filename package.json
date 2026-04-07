@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "concurrently \"node --watch index.js\" \"node src/utils/deleteExpierOTP/cron.js\"",
     "start": "node index.js",
-    "cron": "node src/utils/deleteExpierOTP/cron.js"
+    "cron": "node src/utils/deleteExpierOTP/cron.js",
+    "seed:activity-schedules": "node scripts/add-activity-schedules.js"
   },
   "keywords": [],
   "author": "",

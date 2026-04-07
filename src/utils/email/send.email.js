@@ -28,7 +28,10 @@ export const sendEmail = async ({ to = [], cc = [], bcc = [], subject = "Route",
         attachments
     });
 
-    console.log("Message sent: %s", info.messageId);
+    console.log("[email] messageId:", info.messageId);
+    console.log("[email] accepted:", info.accepted);
+    console.log("[email] rejected:", info.rejected);
+    console.log("[email] response:", info.response);
 
 
 }

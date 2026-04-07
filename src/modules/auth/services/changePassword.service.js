@@ -10,7 +10,7 @@ import { successResponse } from '../../../utils/response/success.response.js';
 // PATCH /auth/change-password
 // Requires: authentication middleware (req.user set by auth middleware)
 export const changePassword = asyncHandler(async (req, res, next) => {
-  const { oldPassword, newPassword } = req.body;
+  const { oldPassword, newPassword, logoutAllSessions = false } = req.body;
 
   // 1. Fetch the authenticated user from DB
   const user = await dbService.findOne({
@@ -44,12 +44,36 @@ export const changePassword = asyncHandler(async (req, res, next) => {
     salt: process.env.SALT,
   });
 
-  // 5. Update password and set changeCredentialTime to invalidate existing tokens
+  // 5. Update password and optionally invalidate all active tokens/sessions
+  const updateData = {
+    password: hashedNewPassword,
+  };
+
+  if (logoutAllSessions) {
+    updateData.changeCredentialTime = new Date();
+  }
+
   await dbService.updateOne({
     model: userModel,
     filter: { _id: req.user._id },
+    data: updateData,
+  });
+
+  return successResponse({
+    res,
+    status: 200,
+    message: 'Password changed successfully',
+    data: {},
+  });
+});
+
+// POST /auth/logout-all-sessions
+// Requires: authentication middleware (req.user set by auth middleware)
+export const logoutAllSessions = asyncHandler(async (req, res) => {
+  await dbService.updateOne({
+    model: userModel,
+    filter: { _id: req.user._id, deletedAt: null },
     data: {
-      password: hashedNewPassword,
       changeCredentialTime: new Date(),
     },
   });
@@ -57,7 +81,7 @@ export const changePassword = asyncHandler(async (req, res, next) => {
   return successResponse({
     res,
     status: 200,
-    message: 'Password changed successfully',
+    message: 'All sessions have been signed out',
     data: {},
   });
 });

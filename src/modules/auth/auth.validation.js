@@ -21,6 +21,13 @@ export const confirmEmail = joi
   })
   .required();
 
+export const resendConfirmEmail = joi
+  .object()
+  .keys({
+    email: generalFields.email.required(),
+  })
+  .required();
+
 export const login = joi
   .object()
   .keys({
@@ -56,6 +63,7 @@ export const changePassword = joi
     confirmationPassword: generalFields.confirmationPassword
       .valid(joi.ref('newPassword'))
       .required(),
+    logoutAllSessions: joi.boolean().optional(),
   })
   .required();
 

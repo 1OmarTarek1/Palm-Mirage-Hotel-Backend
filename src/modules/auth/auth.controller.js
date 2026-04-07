@@ -10,6 +10,11 @@ const router = Router()
 
 router.post("/signup", validation(validators.signup), registrationService.signup)
 router.patch("/confirm-email", validation(validators.confirmEmail), registrationService.confirmEmail)
+router.post(
+  "/resend-confirm-email",
+  validation(validators.resendConfirmEmail),
+  registrationService.resendConfirmEmail
+)
 router.post("/login", validation(validators.login), loginService.login)
 router.post("/login-google", validation(validators.loginWithGoogle), loginService.loginWithGmail)
 
@@ -26,6 +31,11 @@ router.patch(
   authentication(),
   validation(validators.changePassword),
   changePasswordService.changePassword
+)
+router.post(
+  "/logout-all-sessions",
+  authentication(),
+  changePasswordService.logoutAllSessions
 )
 
 

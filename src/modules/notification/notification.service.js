@@ -232,6 +232,34 @@ export const markAllMineRead = asyncHandler(async (req, res) => {
   return successResponse({ res, data: { ok: true } });
 });
 
+export const deleteMineNotification = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  if (!Types.ObjectId.isValid(id)) {
+    return next(new Error("Invalid notification id", { cause: 400 }));
+  }
+
+  const deleted = await NotificationModel.findOneAndDelete({
+    _id: id,
+    audience: "user",
+    userId: req.user._id,
+  }).lean();
+
+  if (!deleted) {
+    return next(new Error("Notification not found", { cause: 404 }));
+  }
+
+  return successResponse({ res, data: { id } });
+});
+
+export const clearReadMineNotifications = asyncHandler(async (req, res) => {
+  const result = await NotificationModel.deleteMany({
+    audience: "user",
+    userId: req.user._id,
+    readAt: { $ne: null },
+  });
+  return successResponse({ res, data: { deletedCount: result.deletedCount || 0 } });
+});
+
 export const listAdmin = asyncHandler(async (req, res) => {
   const { limit, skip, page } = parsePagination(req);
   const filter = { audience: "admin" };
@@ -285,4 +313,30 @@ export const markAdminRead = asyncHandler(async (req, res, next) => {
 export const markAllAdminRead = asyncHandler(async (req, res) => {
   await NotificationModel.updateMany({ audience: "admin", readAt: null }, { readAt: new Date() });
   return successResponse({ res, data: { ok: true } });
+});
+
+export const deleteAdminNotification = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  if (!Types.ObjectId.isValid(id)) {
+    return next(new Error("Invalid notification id", { cause: 400 }));
+  }
+
+  const deleted = await NotificationModel.findOneAndDelete({
+    _id: id,
+    audience: "admin",
+  }).lean();
+
+  if (!deleted) {
+    return next(new Error("Notification not found", { cause: 404 }));
+  }
+
+  return successResponse({ res, data: { id } });
+});
+
+export const clearReadAdminNotifications = asyncHandler(async (_req, res) => {
+  const result = await NotificationModel.deleteMany({
+    audience: "admin",
+    readAt: { $ne: null },
+  });
+  return successResponse({ res, data: { deletedCount: result.deletedCount || 0 } });
 });

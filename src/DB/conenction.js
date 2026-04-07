@@ -8,12 +8,16 @@ const connectDB = async () => {
       ? `mongodb://${rawDbUrl}`
       : "";
 
-  return await mongoose
-    .connect(normalizedDbUrl)
-    .then((res) => {
-      console.log(`DB connection`);
-    })
-    .catch((err) => console.log(`fail to connect on DB: ${err.message}`));
+  if (!normalizedDbUrl) {
+    throw new Error("DB_URL is missing. Please configure it in src/config/.env.dev");
+  }
+
+  mongoose.set("bufferCommands", false);
+
+  await mongoose.connect(normalizedDbUrl, {
+    serverSelectionTimeoutMS: 10000,
+  });
+  console.log("DB connected");
 };
 
 export default connectDB;
