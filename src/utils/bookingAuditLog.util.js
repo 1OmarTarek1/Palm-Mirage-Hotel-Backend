@@ -1,4 +1,5 @@
 import { BookingAuditLog } from "../DB/Model/BookingAuditLog.model.js";
+import { logger } from "./logger.js";
 
 const safeClone = (value) => {
   if (value === undefined || value === null) return undefined;
@@ -31,7 +32,7 @@ export const appendBookingAudit = async ({
       metadata: metadata && typeof metadata === "object" ? { ...metadata } : undefined,
     });
   } catch (err) {
-    console.error("appendBookingAudit failed:", err?.message || err);
+    logger.error("appendBookingAudit failed:", err?.message || err);
     return null;
   }
 };

@@ -1,5 +1,6 @@
 import { emitSocketEvent } from "./index.js";
 import { persistFromBookingRealtimePayload } from "../modules/notification/notification.service.js";
+import { logger } from "../utils/logger.js";
 
 export const BOOKING_SOCKET_EVENTS = {
   userUpdated: "user.booking.updated",
@@ -79,7 +80,7 @@ export const emitBookingRealtimeUpdate = ({
     }) || emitted;
 
   void persistFromBookingRealtimePayload(payload).catch((err) => {
-    console.error("[notifications] persist booking realtime failed:", err?.message || err);
+    logger.error("[notifications] persist booking realtime failed:", err?.message || err);
   });
 
   return emitted;

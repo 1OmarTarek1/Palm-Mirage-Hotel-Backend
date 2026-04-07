@@ -19,7 +19,7 @@ export const sendEmail = async ({ to = [], cc = [], bcc = [], subject = "Route",
         },
     });
 
-    const info = await transporter.sendMail({
+    await transporter.sendMail({
         from: `"Palm Mirage Hotel" <${process.env.EMAIL}>`,
         to,
         subject,
@@ -27,12 +27,5 @@ export const sendEmail = async ({ to = [], cc = [], bcc = [], subject = "Route",
         html,
         attachments
     });
-
-    console.log("[email] messageId:", info.messageId);
-    console.log("[email] accepted:", info.accepted);
-    console.log("[email] rejected:", info.rejected);
-    console.log("[email] response:", info.response);
-
-
 }
 

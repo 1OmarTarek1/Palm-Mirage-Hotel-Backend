@@ -27,7 +27,6 @@ emailEvent.on("sendConfirmEmail", async (data) => {
     options: { new: true },
   });
   await sendEmail({ to: email, subject: "Confirm-Email", html });
-  console.log("email sent");
 });
 
 emailEvent.on('sendForgetPassword', async (data) => {
@@ -68,6 +67,4 @@ emailEvent.on('sendForgetPassword', async (data) => {
     subject: 'Reset Password',
     html,
   });
-
-  console.log('forget password email sent');
 });

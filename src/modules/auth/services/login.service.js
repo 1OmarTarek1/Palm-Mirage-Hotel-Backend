@@ -126,7 +126,6 @@ export const loginWithGmail = asyncHandler(async (req, res, next) => {
     audience: process.env.CLIENT_ID,
   });
   const payload = ticket.getPayload();
-  console.log("[loginWithGmail] Google Payload:", { email: payload.email, email_verified: payload.email_verified });
 
   if (!payload.email_verified) {
     return next(new Error("Google email is not verified"), { cause: 400 });

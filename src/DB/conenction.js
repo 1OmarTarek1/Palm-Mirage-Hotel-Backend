@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { logger } from "../utils/logger.js";
 
 const connectDB = async () => {
   const rawDbUrl = process.env.DB_URL?.trim();
@@ -17,7 +18,7 @@ const connectDB = async () => {
   await mongoose.connect(normalizedDbUrl, {
     serverSelectionTimeoutMS: 10000,
   });
-  console.log("DB connected");
+  logger.info("DB connected");
 };
 
 export default connectDB;

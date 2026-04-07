@@ -23,6 +23,7 @@ import {
 } from "../../bookingTable/services/bookingTable.service.js";
 import { activityBookingModel } from "../../../DB/Model/ActivityBooking.model.js";
 import BookingTableModel from "../../../DB/Model/bookingTable.model.js";
+import { logger } from "../../../utils/logger.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const checkoutCurrency = (process.env.STRIPE_CURRENCY || "usd").toLowerCase();
@@ -129,7 +130,7 @@ const emitCheckoutState = (checkoutSessionDoc) => {
   });
 
   void persistFromCheckoutSessionDoc(checkoutSessionDoc, payload).catch((err) => {
-    console.error("[notifications] persist checkout failed:", err?.message || err);
+    logger.error("[notifications] persist checkout failed:", err?.message || err);
   });
 };
 

@@ -18,6 +18,7 @@ import tableController from './modules/restaurantTable/restaurantTable.controlle
 import menuController from './modules/menu/menu.controller.js'
 import notificationController from './modules/notification/notification.controller.js';
 import { allowOrigin } from './config/origins.js';
+import { logger } from './utils/logger.js';
 
 import cookieParser from 'cookie-parser';
 
@@ -60,7 +61,7 @@ const bootstrap = (app, express) => {
   app.use(globalErrorHandling);
 
   connectDB().catch((err) => {
-    console.error(`DB connection failed: ${err.message}`);
+    logger.error(`DB connection failed: ${err.message}`);
     process.exit(1);
   });
 };

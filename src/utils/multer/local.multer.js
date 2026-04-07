@@ -9,7 +9,6 @@ export const fileValidationTypes = {
 export const uploadDiskFile = (customPath = "general", fileValidation = []) => {
   const basePath = `uploads/${customPath}`;
   const fullPath = path.resolve(`./src/${basePath}`);
-  console.log({ basePath, fullPath });
   if (!fs.existsSync(fullPath)) {
     fs.mkdirSync(fullPath, { recursive: true });
   }
@@ -19,7 +18,6 @@ export const uploadDiskFile = (customPath = "general", fileValidation = []) => {
       callback(null, fullPath);
     },
     filename: (req, file, callback) => {
-      console.log({ file });
       const uniqueSuffix = Date.now() + "_" + Math.round(Math.random() * 1e9) + file.originalname;
       file.finalPath = basePath + "_" + uniqueSuffix + "_" + file.originalname;
       callback(null, uniqueSuffix + "_" + file.originalname);
