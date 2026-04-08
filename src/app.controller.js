@@ -1,4 +1,4 @@
-import connectDB from './DB/conenction.js';
+import connectDB, { getDatabaseStatus, isDatabaseReady } from './DB/conenction.js';
 import cors from 'cors';
 import authController from './modules/auth/auth.controller.js';
 import userController from './modules/user/user.controller.js';
@@ -40,6 +40,24 @@ const bootstrap = (app, express) => {
   app.use(express.json());
   app.use(helmet());
   app.get('/', (req, res) => res.send({ message: 'Hello World!' }));
+  app.get('/health', (req, res) =>
+    res.status(isDatabaseReady() ? 200 : 503).json({
+      status: isDatabaseReady() ? 'ok' : 'degraded',
+      database: getDatabaseStatus(),
+    })
+  );
+
+  app.use((req, res, next) => {
+    if (isDatabaseReady()) {
+      return next();
+    }
+
+    return res.status(503).json({
+      message: 'Service temporarily unavailable while database connection is being restored.',
+      database: getDatabaseStatus(),
+    });
+  });
+
   app.use('/auth', authController);
   app.use('/user', userController);
   app.use('/activity', activityController);
@@ -60,9 +78,8 @@ const bootstrap = (app, express) => {
 
   app.use(globalErrorHandling);
 
-  connectDB().catch((err) => {
-    logger.error(`DB connection failed: ${err.message}`);
-    process.exit(1);
+  connectDB().catch(() => {
+    logger.warn('Initial DB connection did not succeed. The server will keep retrying in the background.');
   });
 };
 export default bootstrap;
