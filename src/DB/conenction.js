@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { logger } from "../utils/logger.js";
 
 let connectionPromise = null;
 let retryTimer = null;
@@ -20,22 +21,22 @@ const attachConnectionListeners = () => {
   listenersAttached = true;
 
   mongoose.connection.on("connected", () => {
-    console.log("DB connected");
+    logger.info("DB connected");
   });
 
   mongoose.connection.on("disconnected", () => {
-    console.warn("DB disconnected");
+    logger.warn("DB disconnected");
   });
 
   mongoose.connection.on("error", (error) => {
-    console.error(`MongoDB connection error: ${error.message}`);
+    logger.error(`MongoDB connection error: ${error.message}`);
   });
 };
 
 const scheduleReconnect = () => {
   if (retryTimer) return;
 
-  console.warn(`Retrying DB connection in ${RETRY_DELAY_MS / 1000} seconds`);
+  logger.warn(`Retrying DB connection in ${RETRY_DELAY_MS / 1000} seconds`);
   retryTimer = setTimeout(() => {
     retryTimer = null;
     connectDB().catch(() => {
@@ -88,7 +89,7 @@ const connectDB = async () => {
       return connection;
     })
     .catch((error) => {
-      console.error(`DB connection failed: ${error.message}`);
+      logger.error(`DB connection failed: ${error.message}`);
       scheduleReconnect();
       throw error;
     })

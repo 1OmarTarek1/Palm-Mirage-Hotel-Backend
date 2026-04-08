@@ -8,7 +8,7 @@ export const signup = joi
     country: generalFields.country.required(),
     email: generalFields.email.required(),
     password: generalFields.password.required(),
-    confirmationPassword: generalFields.confirmationPassword.valid(joi.ref("password")).required(),
+    confirmPassword: generalFields.confirmationPassword.valid(joi.ref("password")).required(),
     phoneNumber: generalFields.phone.required(),
   })
   .required();
@@ -21,6 +21,13 @@ export const confirmEmail = joi
   })
   .required();
 
+export const resendConfirmEmail = joi
+  .object()
+  .keys({
+    email: generalFields.email.required(),
+  })
+  .required();
+
 export const login = joi
   .object()
   .keys({
@@ -29,6 +36,41 @@ export const login = joi
   })
   .required();
 
-export const forgetPassword = joi.object().keys({}).required();
+export const forgetPassword = joi
+  .object()
+  .keys({
+    email: generalFields.email.required(),
+  })
+  .required();
 
-export const resetPassword = joi.object().keys({}).required();
+export const resetPassword = joi
+  .object()
+  .keys({
+    code: generalFields.code.required(),
+    email: generalFields.email.required(),
+    password: generalFields.password.required(),
+    confirmPassword: generalFields.confirmationPassword
+      .valid(joi.ref('password'))
+      .required(),
+  })
+  .required();
+
+export const changePassword = joi
+  .object()
+  .keys({
+    oldPassword: generalFields.password.required(),
+    newPassword: generalFields.password.required(),
+    confirmationPassword: generalFields.confirmationPassword
+      .valid(joi.ref('newPassword'))
+      .required(),
+    logoutAllSessions: joi.boolean().optional(),
+  })
+  .required();
+
+export const loginWithGoogle = joi
+  .object()
+  .keys({
+    idToken: joi.string().required(),
+    mode: joi.string().valid('login', 'register').default('login'),
+  })
+  .required();

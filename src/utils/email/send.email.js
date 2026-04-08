@@ -19,17 +19,13 @@ export const sendEmail = async ({ to = [], cc = [], bcc = [], subject = "Route",
         },
     });
 
-    const info = await transporter.sendMail({
-        from: `"Jop Search App" <${process.env.EMAIL}>`,
+    await transporter.sendMail({
+        from: `"Palm Mirage Hotel" <${process.env.EMAIL}>`,
         to,
         subject,
         text,
         html,
         attachments
     });
-
-    console.log("Message sent: %s", info.messageId);
-
-
 }
 

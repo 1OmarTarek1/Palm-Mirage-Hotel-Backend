@@ -31,6 +31,8 @@ export const userSchema = new Schema(
     password: {
       type: String,
     },
+    
+    
     provider: {
       type: String,
       enum: Object.values(providerTypes),
@@ -43,6 +45,7 @@ export const userSchema = new Schema(
     },
     DOB: Date,
     phoneNumber: String,
+    image: String,
     role: {
       type: String,
       enum: Object.values(roleTypes),
@@ -51,6 +54,29 @@ export const userSchema = new Schema(
     isConfirmed: {
       type: Boolean,
       default: false,
+    },
+    cartItems: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
+    wishlistItems: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
+    /** Saved restaurant menu picks: { [menuItemId]: qty } — synced like room cart */
+    restaurantCart: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
+    /** Pending activity selections in cart: [{ id, activityId, guests, price, ... }] */
+    pendingActivityBookings: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
+    /** Bundled restaurant orders: [{ id, bookingMode, date, time, lineItems: [] }] */
+    pendingRestaurantBookings: {
+      type: [Schema.Types.Mixed],
+      default: [],
     },
     deletedAt: Date,
     bannedAt: Date,
@@ -64,8 +90,10 @@ export const userSchema = new Schema(
         code: { type: String },
         type: { type: String, enum: Object.values(otpTypes), default: otpTypes.confirmEmail },
         expiresIn: { type: Date },
+        attempts: { type: Number, default: 0 },
       },
     ],
+    
   },
   { timestamps: true }
 );

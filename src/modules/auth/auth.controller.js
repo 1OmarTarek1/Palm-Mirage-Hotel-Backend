@@ -1,18 +1,45 @@
 import { Router } from 'express';
 import * as registrationService from './services/registration.service.js'
 import * as loginService from './services/login.service.js'
+import * as changePasswordService from './services/changePassword.service.js'
 import * as validators from './auth.validation.js'
 import { validation } from '../../middleware/validation.middleware.js';
+import { authentication } from '../../middleware/auth.middleware.js';
+
 const router = Router()
 
 router.post("/signup", validation(validators.signup), registrationService.signup)
 router.patch("/confirm-email", validation(validators.confirmEmail), registrationService.confirmEmail)
+router.post(
+  "/resend-confirm-email",
+  validation(validators.resendConfirmEmail),
+  registrationService.resendConfirmEmail
+)
 router.post("/login", validation(validators.login), loginService.login)
-// router.post('/loginWithGmail', loginService.loginWithGmail)
+router.post("/login-google", validation(validators.loginWithGoogle), loginService.loginWithGmail)
+
+router.get("/account", authentication(), loginService.getAuthenticatedAccount)
 
 router.get("/refresh-token", loginService.refreshToken)
-// router.patch("/forget-password", validation(validators.forgetPassword), loginService.forgetPassword)
-// router.patch("/reset-password", validation(validators.resetPassword), loginService.resetPassword)
+router.post("/logout", loginService.logout)
+ router.patch("/forgot-password", validation(validators.forgetPassword), loginService.forgotPassword)
 
+router.patch("/reset-password", validation(validators.resetPassword), loginService.resetPassword)
+
+router.patch(
+  "/change-password",
+  authentication(),
+  validation(validators.changePassword),
+  changePasswordService.changePassword
+)
+router.post(
+  "/logout-all-sessions",
+  authentication(),
+  changePasswordService.logoutAllSessions
+)
+
+
+
+//authRouter.get('/reset-password/:token', AuthController.resetPassword);
 
 export default router;

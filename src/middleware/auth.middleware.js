@@ -4,7 +4,10 @@ import { decodeToken } from "../utils/security/token.security.js"
 
 export const authentication = () => {
     return asyncHandler(async (req, res, next) => {
-        req.user = await decodeToken({ authorization: req.headers.authorization, next })
+        const cookieAccessToken = req.cookies?.accessToken;
+        const authorization = req.headers.authorization || (cookieAccessToken ? `Bearer ${cookieAccessToken}` : undefined);
+
+        req.user = await decodeToken({ authorization, next });
         return next()
     })
 }

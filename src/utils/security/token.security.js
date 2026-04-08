@@ -28,10 +28,30 @@ export const decodeToken = async ({ authorization = "", tokenType = tokenTypes.a
     default:
       break;
   }
-  const decoded = verifyToken({
-    token,
-    signature: tokenType == tokenTypes.access ? accessSignature : refreshSignature,
-  });
+
+  let decoded;
+  try {
+    decoded = verifyToken({
+      token,
+      signature: tokenType === tokenTypes.access ? accessSignature : refreshSignature,
+    });
+  } catch (jwtErr) {
+    // Fallback: if "Bearer" token fails with USER key, try SYSTEM key (admin using website)
+    if (bearer === "Bearer") {
+      try {
+        decoded = verifyToken({
+          token,
+          signature: tokenType === tokenTypes.access
+            ? process.env.SYSTEM_ACCESS_TOKEN
+            : process.env.SYSTEM_REFRESH_TOKEN,
+        });
+      } catch (_) {
+        return next(new Error("In-valid token", { cause: 400 }));
+      }
+    } else {
+      return next(new Error("In-valid token", { cause: 400 }));
+    }
+  }
   if (!decoded?.id) {
     return next(new Error("In-valid  token payload", { cause: 400 }));
   }
@@ -39,6 +59,9 @@ export const decodeToken = async ({ authorization = "", tokenType = tokenTypes.a
   const user = await dbService.findOne({ model: userModel, filter: { _id: decoded.id } });
   if (!user) {
     return next(new Error("In-valid account ", { cause: 404 }));
+  }
+  if (user.deletedAt) {
+    return next(new Error("This account has been deleted", { cause: 401 }));
   }
 
   if (user.changeCredentialTime?.getTime() >= decoded.iat * 1000) {
@@ -50,7 +73,7 @@ export const decodeToken = async ({ authorization = "", tokenType = tokenTypes.a
 export const generateToken = ({
   payload = {},
   signature = process.env.USER_ACCESS_TOKEN,
-  expiresIn = parseInt(process.env.EXPIRESIN),
+  expiresIn = parseInt(process.env.EXPIRESIN) || 86400,
 } = {}) => {
   const token = jwt.sign(payload, signature, { expiresIn });
   return token;

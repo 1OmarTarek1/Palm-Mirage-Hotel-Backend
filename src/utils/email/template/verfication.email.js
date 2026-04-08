@@ -20,7 +20,7 @@ export const verficatioinEmailTemplate = ({ code } = {}) => {
                 </h1>
                 </td>
                 <td>
-                <p style="text-align: right;"><a href="http://localhost:4200/#/" target="_blank" style="text-decoration: none;">View In Website</a></p>
+                <p style="text-align: right;"><a href="https://palm-mirage-hotel.netlify.app" target="_blank" style="text-decoration: none;">View In Website</a></p>
                 </td>
                 </tr>
                 </table>
