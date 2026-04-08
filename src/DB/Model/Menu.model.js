@@ -1,24 +1,30 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
+
+export const allowedCategories = ["Appetizer", "Restaurant", "Desserts", "Drinks"];
 
 const menuSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-
-    description: String,
-
-    price: { type: Number, required: true },
-
+    name: { type: String, required: true, trim: true },
+    description: { type: String, default: "" },
+    price: { type: Number, required: true, min: 0 },
     category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Category',
+      type: String,
+      enum: allowedCategories,
       required: true,
+      trim: true,
     },
-
-    image: { type: String }, // Cloudinary URL
-
+    categoryIcon: { type: String, default: "" },
+    categoryHeroImg: { type: String, default: "" },
+    image: { type: String, default: "" },
     available: { type: Boolean, default: true },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
   },
   { timestamps: true }
 );
 
-export default mongoose.model('Menu', menuSchema);
+export const menuModel = mongoose.models.Menu || mongoose.model("Menu", menuSchema);
+
+export default menuModel;
