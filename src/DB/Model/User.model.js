@@ -68,6 +68,16 @@ export const userSchema = new Schema(
       type: Schema.Types.Mixed,
       default: {},
     },
+    /** Pending activity selections in cart: [{ id, activityId, guests, price, ... }] */
+    pendingActivityBookings: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
+    /** Bundled restaurant orders: [{ id, bookingMode, date, time, lineItems: [] }] */
+    pendingRestaurantBookings: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
     deletedAt: Date,
     bannedAt: Date,
     updatedBy: {

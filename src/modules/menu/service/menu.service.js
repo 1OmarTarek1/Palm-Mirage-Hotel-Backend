@@ -130,38 +130,53 @@ export const getMenu = asyncHandler(async (req, res, next) => {
   const categoriesMap = {};
 
   for (const cat of Object.keys(byCategory)) {
-    const catItems = byCategory[cat];
-    // Use the most recently updated item for section hero/icon so dashboard edits apply reliably
-    // (previously the first document in DB order won, which often stayed stale).
-    const representative = catItems.reduce((best, cur) => {
-      const tBest = new Date(best.updatedAt || 0).getTime();
-      const tCur = new Date(cur.updatedAt || 0).getTime();
-      return tCur >= tBest ? cur : best;
-    });
+    try {
+      const catItems = byCategory[cat];
+      if (!catItems || catItems.length === 0) continue;
 
-    categoriesMap[cat] = {
-      label: cat,
-      sectionId: SECTION_ID_BY_LABEL[cat] ?? cat.toLowerCase(),
-      icon: representative.categoryIcon,
-      heroImg: representative.categoryHeroImg,
-    };
-    categoryMenuItems[cat] = catItems.map((item) => ({
-      id: item._id,
-      name: item.name,
-      description: item.description,
-      price: item.price,
-      image: item.image,
-    }));
+      // Use the most recently updated item for section hero/icon so dashboard edits apply reliably
+      const representative = catItems.length === 1 
+        ? catItems[0] 
+        : catItems.reduce((best, cur) => {
+            const tBest = new Date(best.updatedAt || 0).getTime();
+            const tCur = new Date(cur.updatedAt || 0).getTime();
+            return tCur >= tBest ? cur : best;
+          });
+
+      categoriesMap[cat] = {
+        label: cat,
+        sectionId: SECTION_ID_BY_LABEL[cat] ?? String(cat || 'unknown').toLowerCase(),
+        icon: representative?.categoryIcon || 'Utensils',
+        heroImg: representative?.categoryHeroImg || '',
+      };
+      categoryMenuItems[cat] = catItems.map((item) => ({
+        id: item._id,
+        name: item.name || 'Unnamed Item',
+        description: item.description || '',
+        price: item.price || 0,
+        image: item.image || '',
+      }));
+    } catch (err) {
+      console.error(`[MenuService] Failed to process category "${cat}":`, err.message);
+      // Skip this category rather than crashing the whole menu
+    }
   }
 
-  const categories = MENU_CATEGORY_ORDER.filter((label) => categoriesMap[label]).map(
-    (label) => categoriesMap[label]
-  );
+  const categories = MENU_CATEGORY_ORDER
+    .filter((label) => categoriesMap[label])
+    .map((label) => categoriesMap[label]);
+
+  // Add any extra categories not in the defined order
+  const otherCategories = Object.keys(categoriesMap)
+    .filter(label => !MENU_CATEGORY_ORDER.includes(label))
+    .map(label => categoriesMap[label]);
+
+  const finalCategories = [...categories, ...otherCategories];
 
   return successResponse({
     res,
     data: {
-      categories,
+      categories: finalCategories,
       categoryMenuItems,
     },
   });

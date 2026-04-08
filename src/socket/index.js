@@ -3,6 +3,7 @@ import * as dbService from "../DB/db.service.js";
 import { allowOrigin } from "../config/origins.js";
 import { userModel } from "../DB/Model/User.model.js";
 import { verifyToken } from "../utils/security/token.security.js";
+import { logger } from "../utils/logger.js";
 
 let ioInstance = null;
 
@@ -48,18 +49,32 @@ export const initializeSocket = (httpServer) => {
         "Bearer";
 
       if (!accessToken) {
+        logger.warn("[socket] unauthorized: missing access token");
         return next(new Error("Unauthorized"));
       }
 
-      const decoded = verifyToken({
-        token: accessToken,
-        signature:
-          authScheme === "System"
-            ? process.env.SYSTEM_ACCESS_TOKEN
-            : process.env.USER_ACCESS_TOKEN,
-      });
+      let decoded;
+      try {
+        decoded = verifyToken({
+          token: accessToken,
+          signature:
+            authScheme === "System"
+              ? process.env.SYSTEM_ACCESS_TOKEN
+              : process.env.USER_ACCESS_TOKEN,
+        });
+      } catch (error) {
+        if (authScheme === "Bearer") {
+          decoded = verifyToken({
+            token: accessToken,
+            signature: process.env.SYSTEM_ACCESS_TOKEN,
+          });
+        } else {
+          throw error;
+        }
+      }
 
       if (!decoded?.id) {
+        logger.warn("[socket] unauthorized: decoded token missing user id");
         return next(new Error("Unauthorized"));
       }
 
@@ -70,10 +85,15 @@ export const initializeSocket = (httpServer) => {
       });
 
       if (!user) {
+        logger.warn("[socket] unauthorized: user not found for token", decoded.id);
         return next(new Error("Unauthorized"));
       }
 
       if (user.changeCredentialTime?.getTime() >= decoded.iat * 1000) {
+        logger.warn("[socket] unauthorized: credentials changed after token issuance", {
+          userId: user._id?.toString?.(),
+          tokenIat: decoded.iat,
+        });
         return next(new Error("Unauthorized"));
       }
 
@@ -83,7 +103,8 @@ export const initializeSocket = (httpServer) => {
       };
 
       return next();
-    } catch {
+    } catch (error) {
+      logger.warn("[socket] unauthorized during handshake", error?.message || error);
       return next(new Error("Unauthorized"));
     }
   });

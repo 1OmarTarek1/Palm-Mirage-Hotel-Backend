@@ -342,11 +342,15 @@ export const getRoomAvailability = asyncHandler(async (req, res, next) => {
       isVisible: room.isAvailable,
       checkInTime: room.checkInTime,
       checkOutTime: room.checkOutTime,
-      bookedRanges: blockedRanges.map((range) => ({
+      bookedRanges: room.isAvailable ? blockedRanges.map((range) => ({
         checkInDate: range.checkInDate,
         checkOutDate: range.checkOutDate,
         status: range.status,
-      })),
+      })) : [{
+        checkInDate: new Date(Date.now() - 86400000).toISOString(),
+        checkOutDate: new Date(Date.now() + 315360000000).toISOString(), // 10 years
+        status: "out-of-service",
+      }],
     },
     message: "Room availability retrieved successfully",
   });

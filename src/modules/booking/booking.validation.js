@@ -112,8 +112,12 @@ export const getAllBookingsSchema = Joi.object({
   weekKeys: Joi.string().max(120).optional(),
 
   page: Joi.number().min(1).default(1),
+  limit: Joi.number().min(1).max(1000).default(10),
 
-  size: Joi.number().min(1).max(100).default(10),
+  search: Joi.string().trim().allow("").optional(),
+  sort: Joi.string()
+    .valid("newest", "oldest", "checkIn_asc", "checkIn_desc")
+    .optional(),
 
   status: Joi.string()
     .valid("pending", "confirmed", "checked-in", "completed", "cancelled", "no-show")
@@ -129,3 +133,4 @@ export const getAllBookingsSchema = Joi.object({
     .greater(Joi.ref("fromDate"))
     .optional(),
 });
+

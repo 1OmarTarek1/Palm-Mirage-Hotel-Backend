@@ -50,7 +50,7 @@ export const queryFilter = joi
     paymentStatus: joi.string().valid(...activityBookingPaymentStatuses),
     search: joi.string().trim().max(200).allow(""),
     page: joi.number().integer().min(1),
-    limit: joi.number().integer().min(1).max(100),
+    limit: joi.number().integer().min(1).max(1000),
     sort: joi.string().valid("newest", "oldest"),
   })
   .required();

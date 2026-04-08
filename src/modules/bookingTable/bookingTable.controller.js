@@ -12,7 +12,7 @@ const router = Router();
 router.post("/booking", authentication(), validation(validators.createBooking), createBooking);
 
 router.get("/my-bookings", privateNoStore, authentication(), getMyBookings);
-router.get("/", privateNoStore, authentication(), authorization([roleTypes.admin]), getAllBookings);
+router.get("/", privateNoStore, authentication(), authorization([roleTypes.admin]), validation(validators.getAllBookings), getAllBookings);
 router.get(
   "/available-tables",
   privateNoStore,

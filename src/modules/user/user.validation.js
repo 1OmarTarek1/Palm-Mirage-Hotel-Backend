@@ -49,8 +49,16 @@ export const updatePreferences = joi
     cartItems: joi.array().items(preferenceItem).optional(),
     wishlistItems: joi.array().items(preferenceItem).optional(),
     restaurantCart: restaurantCartKeys.optional(),
+    pendingActivityBookings: joi.array().items(preferenceItem).optional(),
+    pendingRestaurantBookings: joi.array().items(preferenceItem).optional(),
   })
-  .or("cartItems", "wishlistItems", "restaurantCart");
+  .or(
+    "cartItems",
+    "wishlistItems",
+    "restaurantCart",
+    "pendingActivityBookings",
+    "pendingRestaurantBookings",
+  );
 
 export const updateProfile = joi
   .object({

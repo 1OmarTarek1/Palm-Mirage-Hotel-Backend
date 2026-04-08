@@ -1,6 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 
-export const restaurantBookingModes = ["table_only", "dine_in", "room_service"];
+export const restaurantBookingModes = ["table_only", "dine_in", "room_service", "pickup"];
 export const restaurantPaymentMethods = ["stripe", "cash"];
 
 const lineItemSchema = new Schema(

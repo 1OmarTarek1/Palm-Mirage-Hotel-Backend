@@ -24,6 +24,7 @@ import {
 import { activityBookingModel } from "../../../DB/Model/ActivityBooking.model.js";
 import BookingTableModel from "../../../DB/Model/bookingTable.model.js";
 import { logger } from "../../../utils/logger.js";
+import { userModel } from "../../../DB/Model/User.model.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const checkoutCurrency = (process.env.STRIPE_CURRENCY || "usd").toLowerCase();
@@ -104,6 +105,13 @@ const buildStripePayLineItem = (item) => ({
   quantity: item.quantity || 1,
 });
 
+const getRestaurantBookingModeLabel = (bookingMode) => {
+  if (bookingMode === "room_service") return "Room Service";
+  if (bookingMode === "pickup") return "Pickup";
+  if (bookingMode === "table_only") return "Table Only";
+  return "Dine In";
+};
+
 const emitCheckoutState = (checkoutSessionDoc) => {
   const payload = {
     checkoutId: checkoutSessionDoc._id.toString(),
@@ -173,7 +181,8 @@ const markCheckoutAsOpen = async (checkoutSessionDoc, stripeSession) => {
   emitCheckoutState(checkoutSessionDoc);
 };
 
-const finalizeRoomPaidCheckout = async (checkoutSessionDoc, stripeSession) => {
+const finalizeUnifiedPaidCheckout = async (checkoutSessionDoc, stripeSession) => {
+  // 1. Rooms Fulfillment (Existing Logic)
   const existingBookings = await UserBooking.find({
     checkoutSession: checkoutSessionDoc._id,
   }).select("_id");
@@ -190,71 +199,118 @@ const finalizeRoomPaidCheckout = async (checkoutSessionDoc, stripeSession) => {
     return checkoutSessionDoc;
   }
 
-  if (existingBookings.length === checkoutSessionDoc.items.length) {
-    checkoutSessionDoc.status = "fulfilled";
-    checkoutSessionDoc.fulfilledAt = checkoutSessionDoc.fulfilledAt || new Date();
-    checkoutSessionDoc.failureReason = undefined;
-    await checkoutSessionDoc.save();
-    emitCheckoutState(checkoutSessionDoc);
-    return checkoutSessionDoc;
-  }
+  if (existingBookings.length === checkoutSessionDoc.items.length && checkoutSessionDoc.items.length > 0) {
+    // Already fulfilled rooms
+  } else if (checkoutSessionDoc.items.length > 0) {
+     for (const item of checkoutSessionDoc.items) {
+      await prepareRoomBookingQuote({
+        roomId: item.room,
+        checkInDate: item.checkInDate,
+        checkOutDate: item.checkOutDate,
+        guests: item.guests,
+        excludeCheckoutSessionId: checkoutSessionDoc._id,
+      });
+    }
 
-  for (const item of checkoutSessionDoc.items) {
-    await prepareRoomBookingQuote({
-      roomId: item.room,
+    const bookingPayload = checkoutSessionDoc.items.map((item) => ({
+      user: checkoutSessionDoc.user,
+      room: item.room,
+      checkoutSession: checkoutSessionDoc._id,
       checkInDate: item.checkInDate,
       checkOutDate: item.checkOutDate,
+      nights: item.nights,
+      pricePerNight: item.pricePerNight,
+      totalPrice: item.totalPrice,
       guests: item.guests,
-      excludeCheckoutSessionId: checkoutSessionDoc._id,
+      status: "confirmed",
+      paymentStatus: "paid",
+      paymentMethod: "card",
+      specialRequests:
+        checkoutSessionDoc.bookingNotes || "Booked from Website / Stripe Checkout",
+    }));
+
+    const createdBookings = await UserBooking.insertMany(bookingPayload, { ordered: true });
+
+    await appendBookingAudit({
+      entityType: "payment_checkout",
+      entityId: checkoutSessionDoc._id,
+      action: "fulfilled_room",
+      actorId: null,
+      metadata: { bookingIds: createdBookings.map((b) => String(b._id)) },
+    });
+
+    emitBookingRealtimeUpdate({
+      resource: "room",
+      action: "created",
+      userId: checkoutSessionDoc.user,
+      bookingIds: createdBookings.map((booking) => booking._id),
+      source: "stripe_checkout",
+      title: "Room booking confirmed",
+      message: "Payment received — your room reservation is confirmed.",
+      severity: "success",
     });
   }
 
-  const bookingPayload = checkoutSessionDoc.items.map((item) => ({
-    user: checkoutSessionDoc.user,
-    room: item.room,
-    checkoutSession: checkoutSessionDoc._id,
-    checkInDate: item.checkInDate,
-    checkOutDate: item.checkOutDate,
-    nights: item.nights,
-    pricePerNight: item.pricePerNight,
-    totalPrice: item.totalPrice,
-    guests: item.guests,
-    status: "confirmed",
-    paymentStatus: "paid",
-    paymentMethod: "card",
-    specialRequests:
-      checkoutSessionDoc.bookingNotes || "Booked from Website / Stripe Checkout",
-  }));
+  // 2. Activities Fulfillment
+  if (Array.isArray(checkoutSessionDoc.linkedActivityBookings) && checkoutSessionDoc.linkedActivityBookings.length > 0) {
+    for (const bookingId of checkoutSessionDoc.linkedActivityBookings) {
+      const result = await fulfillActivityBookingAfterStripe({
+        bookingId,
+        checkoutSessionId: checkoutSessionDoc._id,
+      });
 
-  const createdBookings = await UserBooking.insertMany(bookingPayload, { ordered: true });
+      if (result.ok) {
+        emitBookingRealtimeUpdate({
+          resource: "activity",
+          action: "updated",
+          userId: result.userId,
+          bookingId,
+          source: "stripe_checkout",
+          title: "Activity paid",
+          message: "Your activity booking is confirmed.",
+          severity: "success",
+        });
+      }
+    }
+  }
 
+  // 3. Restaurant Fulfillment
+  if (Array.isArray(checkoutSessionDoc.linkedRestaurantBookings) && checkoutSessionDoc.linkedRestaurantBookings.length > 0) {
+    for (const bookingId of checkoutSessionDoc.linkedRestaurantBookings) {
+      const result = await fulfillRestaurantBookingAfterStripe({
+        bookingId,
+        checkoutSessionId: checkoutSessionDoc._id,
+      });
+
+      if (result.ok) {
+        emitBookingRealtimeUpdate({
+          resource: "restaurant",
+          action: "updated",
+          userId: result.userId,
+          bookingId,
+          source: "stripe_checkout",
+          title: "Restaurant order paid",
+          message: "Payment received — your restaurant booking is confirmed.",
+          severity: "success",
+        });
+      }
+    }
+  }
+
+  // Finalize Session
   checkoutSessionDoc.status = "fulfilled";
   checkoutSessionDoc.fulfilledAt = new Date();
   checkoutSessionDoc.failureReason = undefined;
   await checkoutSessionDoc.save();
   emitCheckoutState(checkoutSessionDoc);
 
-  await appendBookingAudit({
-    entityType: "payment_checkout",
-    entityId: checkoutSessionDoc._id,
-    action: "fulfilled_room",
-    actorId: null,
-    metadata: { bookingIds: createdBookings.map((b) => String(b._id)) },
-  });
-
-  emitBookingRealtimeUpdate({
-    resource: "room",
-    action: "created",
-    userId: checkoutSessionDoc.user,
-    bookingIds: createdBookings.map((booking) => booking._id),
-    source: "stripe_checkout",
-    title: "Room booking confirmed",
-    message: "Payment received — your room reservation is confirmed.",
-    severity: "success",
-    metadata: {
-      checkoutId: checkoutSessionDoc._id,
-      paymentStatus: checkoutSessionDoc.stripePaymentStatus,
-    },
+  // Clear user's carts after successful unified payment
+  await userModel.findByIdAndUpdate(checkoutSessionDoc.user, { 
+    $set: { cartItems: [], restaurantCart: {} },
+    $pull: { 
+      pendingActivityBookings: { activityBookingId: { $in: checkoutSessionDoc.linkedActivityBookings || [] } },
+      pendingRestaurantBookings: { restaurantBookingId: { $in: checkoutSessionDoc.linkedRestaurantBookings || [] } }
+    }
   });
 
   return checkoutSessionDoc;
@@ -302,6 +358,12 @@ const finalizeActivityPaidCheckout = async (checkoutSessionDoc, stripeSession) =
     severity: "success",
   });
 
+  // Clear specific pending activity from user's cart
+  const bookingId = checkoutSessionDoc.linkedEntityId;
+  await userModel.findByIdAndUpdate(checkoutSessionDoc.user, {
+    $pull: { pendingActivityBookings: { activityBookingId: bookingId } }
+  });
+
   return checkoutSessionDoc;
 };
 
@@ -345,6 +407,13 @@ const finalizeRestaurantPaidCheckout = async (checkoutSessionDoc, stripeSession)
     title: "Restaurant order paid",
     message: "Payment received — your restaurant booking is confirmed.",
     severity: "success",
+  });
+
+  // Clear specific pending restaurant booking AND the menu cart from user's account
+  const bookingId = checkoutSessionDoc.linkedEntityId;
+  await userModel.findByIdAndUpdate(checkoutSessionDoc.user, {
+    $pull: { pendingRestaurantBookings: { restaurantBookingId: bookingId } },
+    $set: { restaurantCart: {} }
   });
 
   return checkoutSessionDoc;
@@ -391,7 +460,7 @@ const finalizePaidCheckout = async (stripeSession) => {
     return finalizeRestaurantPaidCheckout(checkoutSessionDoc, stripeSession);
   }
 
-  return finalizeRoomPaidCheckout(checkoutSessionDoc, stripeSession);
+  return finalizeUnifiedPaidCheckout(checkoutSessionDoc, stripeSession);
 };
 
 const markCheckoutExpired = async (stripeSession) => {
@@ -507,108 +576,159 @@ const syncStripeSessionState = async (checkoutSessionDoc) => {
 };
 
 export const createCheckoutSession = asyncHandler(async (req, res, next) => {
-  const { items, customerEmail, bookingNotes } = req.body;
+  const { items, activityBookings, restaurantBookings, customerEmail, bookingNotes } = req.body;
 
   if (!process.env.STRIPE_SECRET_KEY) {
     return next(new Error("Stripe secret key is not configured", { cause: 500 }));
   }
 
-  const duplicateRoomIds = new Set();
-  for (const item of items) {
-    const roomId = String(item.roomId);
-    if (duplicateRoomIds.has(roomId)) {
-      return next(new Error("A room can only appear once per checkout", { cause: 400 }));
+  // 1. Validate and prepare Room items
+  const preparedRoomItems = [];
+  if (Array.isArray(items) && items.length > 0) {
+    const duplicateRoomIds = new Set();
+    for (const item of items) {
+      if (duplicateRoomIds.has(String(item.roomId))) {
+        return next(new Error("A room can only appear once per checkout", { cause: 400 }));
+      }
+      duplicateRoomIds.add(String(item.roomId));
+      
+      const prepared = await prepareRoomBookingQuote({
+        roomId: item.roomId,
+        checkInDate: item.checkInDate,
+        checkOutDate: item.checkOutDate,
+        guests: item.guests,
+      });
+      preparedRoomItems.push(prepared.item);
     }
-    duplicateRoomIds.add(roomId);
   }
 
-  const sessionFingerprint = buildCheckoutFingerprint({
-    userId: req.user._id,
-    items,
-  });
+  // 2. Prepare Awaiting Payment records for Activities & Restaurant
+  const linkedActivityIds = [];
+  const linkedRestaurantIds = [];
+  const payItems = [];
 
-  const reusableSession = await PaymentCheckoutSession.findOne({
-    user: req.user._id,
-    sessionFingerprint,
-    kind: "room",
-    status: "open",
-    expiresAt: { $gt: new Date() },
-    stripeSessionUrl: { $exists: true, $ne: null },
-  }).sort({ createdAt: -1 });
-
-  if (reusableSession?.stripeSessionUrl) {
-    const syncedSession = await syncStripeSessionState(reusableSession);
-
-    if (syncedSession?.status === "fulfilled") {
-      return successResponse({
-        res,
-        message: "Checkout already fulfilled",
-        data: {
-          url: null,
-          sessionId: syncedSession.stripeSessionId,
-          checkoutId: syncedSession._id,
-          expiresAt: syncedSession.expiresAt,
-          reused: false,
-          status: syncedSession.status,
-        },
+  if (Array.isArray(activityBookings)) {
+    for (const ab of activityBookings) {
+      // Create record with all required fields for ActivityBooking schema
+      const booking = await activityBookingModel.create({
+        user: req.user._id,
+        activity: ab.activityId,
+        schedule: ab.scheduleId,
+        guests: ab.guests,
+        unitPrice: ab.price || 0,
+        totalPrice: (ab.price || 0) * (ab.guests || 1),
+        pricingType: ab.pricingType || "per_person",
+        bookingDate: ab.scheduleDate || ab.date || new Date(), // Corrected to use scheduleDate
+        startTime: ab.startTime || "09:00",
+        endTime: ab.endTime || "10:00",
+        status: "awaiting_payment",
+        paymentStatus: "unpaid",
+        paymentMethod: "card",
+        contactPhone: ab.contactPhone || "0000000000",
+        notes: ab.notes || "From bundled checkout",
       });
-    }
-
-    if (syncedSession?.status === "open" && syncedSession?.stripeSessionUrl) {
-      return successResponse({
-        res,
-        message: "Checkout session reused",
-        data: {
-          url: syncedSession.stripeSessionUrl,
-          sessionId: syncedSession.stripeSessionId,
-          checkoutId: syncedSession._id,
-          expiresAt: syncedSession.expiresAt,
-          reused: true,
-          status: syncedSession.status,
-        },
+      linkedActivityIds.push(booking._id);
+      payItems.push({
+        name: `Activity: ${ab.activityTitle || "Activity"}`,
+        totalPrice: booking.totalPrice,
+        quantity: 1,
       });
     }
   }
 
-  const preparedItems = [];
-  for (const item of items) {
-    const prepared = await prepareRoomBookingQuote({
-      roomId: item.roomId,
-      checkInDate: item.checkInDate,
-      checkOutDate: item.checkOutDate,
-      guests: item.guests,
-    });
+  if (Array.isArray(restaurantBookings)) {
+    for (const rb of restaurantBookings) {
+      const startTime = rb.startTime || new Date(`${rb.date}T${rb.time}`);
+      const endTime = rb.endTime || new Date(new Date(startTime).getTime() + 2 * 60 * 60 * 1000);
 
-    preparedItems.push(prepared.item);
+      const booking = await BookingTableModel.create({
+        user: req.user._id,
+        bookingMode: rb.bookingMode || "table_only",
+        startTime,
+        endTime,
+        guests: rb.guests || 1,
+        tableNumber: rb.number, // In schema it is tableNumber, frontend sends 'number'
+        roomNumber: rb.roomNumber,
+        lineItems: (rb.lineItems || []).map(li => ({
+          menuItem: li.menuItemId, // Correcting 'id' to 'menuItemId'
+          nameSnapshot: li.name,
+          qty: li.qty,
+          unitPrice: li.price
+        })),
+        lineItemsTotal: (rb.lineItems || []).reduce((acc, li) => acc + (li.price * li.qty), 0),
+        status: "awaiting_payment",
+        paymentStatus: "unpaid",
+        paymentMethod: "stripe",
+      });
+      linkedRestaurantIds.push(booking._id);
+      payItems.push({
+        name: `Restaurant: ${getRestaurantBookingModeLabel(rb.bookingMode)}`,
+        totalPrice: booking.lineItemsTotal,
+        quantity: 1,
+      });
+    }
   }
 
   const amountTotal = Number(
-    preparedItems.reduce((sum, item) => sum + item.totalPrice, 0).toFixed(2),
+    (
+      preparedRoomItems.reduce((sum, item) => sum + item.totalPrice, 0) +
+      payItems.reduce((sum, item) => sum + item.totalPrice, 0)
+    ).toFixed(2),
   );
+
   const { successUrl, cancelUrl } = buildCheckoutUrls(req);
   const contactEmail = String(customerEmail || req.user.email || "").trim().toLowerCase();
 
-  const checkoutSessionDoc = await PaymentCheckoutSession.create({
-    kind: "room",
-    user: req.user._id,
-    sessionFingerprint,
-    items: preparedItems,
-    currency: checkoutCurrency,
-    amountSubtotal: amountTotal,
-    amountTotal,
-    status: "creating",
-    contactEmail: contactEmail || undefined,
-    bookingNotes: bookingNotes || undefined,
-    successUrl,
-    cancelUrl,
-  });
+  const sessionFingerprint = buildCheckoutFingerprint({
+    userId: req.user._id,
+    items: preparedRoomItems.map(i => ({ roomId: i.room, ...i })),
+  }) + `:${linkedActivityIds.join(",")}:${linkedRestaurantIds.join(",")}`;
+
+  const sessionFingerprintVal = sessionFingerprint || String(req.user._id) || req.ip || "generic-session";
+
+  let checkoutSessionDoc;
+  try {
+    checkoutSessionDoc = await PaymentCheckoutSession.create({
+      kind: "room",
+      user: req.user._id,
+      sessionFingerprint: sessionFingerprintVal,
+      items: preparedRoomItems,
+      linkedActivityBookings: linkedActivityIds,
+      linkedRestaurantBookings: linkedRestaurantIds,
+      payItems,
+      amountSubtotal: amountTotal,
+      amountTotal,
+      currency: "usd",
+      status: "creating",
+      contactEmail: contactEmail || req.user.email || "guest@palmmirage.com",
+      metadata: { 
+        checkoutKind: "unified"
+      },
+      bookingNotes: bookingNotes || undefined,
+      successUrl,
+      cancelUrl,
+    });
+  } catch (err) {
+    if (err.name === 'ValidationError') {
+      console.error('Mongoose Validation Error details:', JSON.stringify(err.errors, null, 2));
+    } else {
+      console.error('Checkout session creation error:', err);
+    }
+    throw err; // Still throw to let the global error handler handle it, but now we have logs
+  }
 
   try {
     const expiresAt = Math.floor(Date.now() / 1000) + checkoutExpiresInMinutes * 60;
+    
+    const line_items = [
+      ...preparedRoomItems.map(buildStripeLineItem),
+      ...payItems.map(buildStripePayLineItem)
+    ];
+
     const session = await stripe.checkout.sessions.create(
       {
         payment_method_types: ["card"],
-        line_items: preparedItems.map(buildStripeLineItem),
+        line_items,
         mode: "payment",
         customer_email: contactEmail || undefined,
         success_url: successUrl,
@@ -618,33 +738,21 @@ export const createCheckoutSession = asyncHandler(async (req, res, next) => {
         metadata: {
           checkoutId: checkoutSessionDoc._id.toString(),
           userId: req.user._id.toString(),
-          bookingCount: String(preparedItems.length),
-          checkoutKind: "room",
-        },
-        payment_intent_data: {
-          metadata: {
-            checkoutId: checkoutSessionDoc._id.toString(),
-            userId: req.user._id.toString(),
-            checkoutKind: "room",
-          },
+          checkoutKind: "unified",
         },
       },
-      {
-        idempotencyKey: `checkout_session_${checkoutSessionDoc._id}`,
-      },
+      { idempotencyKey: `checkout_unified_${checkoutSessionDoc._id}` },
     );
-    session.expires_at = session.expires_at || expiresAt;
+
     await markCheckoutAsOpen(checkoutSessionDoc, session);
 
     return successResponse({
       res,
-      message: "Checkout session created",
+      message: "Unified checkout session created",
       data: {
         url: session.url,
         sessionId: session.id,
         checkoutId: checkoutSessionDoc._id,
-        expiresAt: checkoutSessionDoc.expiresAt,
-        reused: false,
       },
     });
   } catch (error) {
@@ -922,32 +1030,35 @@ export const getCheckoutSessionStatus = asyncHandler(async (req, res, next) => {
   const checkoutSessionDoc = await PaymentCheckoutSession.findOne({
     stripeSessionId: sessionId,
     user: req.user._id,
-  }).select(
-    "_id kind stripeSessionId status stripePaymentStatus expiresAt fulfilledAt amountTotal currency linkedEntityId",
-  );
+  });
 
   if (!checkoutSessionDoc) {
     return next(new Error("Checkout session not found", { cause: 404 }));
   }
 
+  const syncedCheckoutSession =
+    process.env.STRIPE_SECRET_KEY && checkoutSessionDoc.stripeSessionId
+      ? await syncStripeSessionState(checkoutSessionDoc)
+      : checkoutSessionDoc;
+
   const bookingsCount = await UserBooking.countDocuments({
-    checkoutSession: checkoutSessionDoc._id,
+    checkoutSession: syncedCheckoutSession._id,
   });
 
   return successResponse({
     res,
     message: "Checkout session status retrieved",
     data: {
-      checkoutId: checkoutSessionDoc._id,
-      kind: checkoutSessionDoc.kind || "room",
-      linkedEntityId: checkoutSessionDoc.linkedEntityId,
-      sessionId: checkoutSessionDoc.stripeSessionId,
-      status: checkoutSessionDoc.status,
-      paymentStatus: checkoutSessionDoc.stripePaymentStatus,
-      expiresAt: checkoutSessionDoc.expiresAt,
-      fulfilledAt: checkoutSessionDoc.fulfilledAt,
-      amountTotal: checkoutSessionDoc.amountTotal,
-      currency: checkoutSessionDoc.currency,
+      checkoutId: syncedCheckoutSession._id,
+      kind: syncedCheckoutSession.kind || "room",
+      linkedEntityId: syncedCheckoutSession.linkedEntityId,
+      sessionId: syncedCheckoutSession.stripeSessionId,
+      status: syncedCheckoutSession.status,
+      paymentStatus: syncedCheckoutSession.stripePaymentStatus,
+      expiresAt: syncedCheckoutSession.expiresAt,
+      fulfilledAt: syncedCheckoutSession.fulfilledAt,
+      amountTotal: syncedCheckoutSession.amountTotal,
+      currency: syncedCheckoutSession.currency,
       bookingsCount,
     },
   });

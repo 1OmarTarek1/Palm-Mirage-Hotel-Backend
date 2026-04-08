@@ -29,10 +29,29 @@ export const decodeToken = async ({ authorization = "", tokenType = tokenTypes.a
       break;
   }
 
-  const decoded = verifyToken({
-    token,
-    signature: tokenType == tokenTypes.access ? accessSignature : refreshSignature,
-  });
+  let decoded;
+  try {
+    decoded = verifyToken({
+      token,
+      signature: tokenType === tokenTypes.access ? accessSignature : refreshSignature,
+    });
+  } catch (jwtErr) {
+    // Fallback: if "Bearer" token fails with USER key, try SYSTEM key (admin using website)
+    if (bearer === "Bearer") {
+      try {
+        decoded = verifyToken({
+          token,
+          signature: tokenType === tokenTypes.access
+            ? process.env.SYSTEM_ACCESS_TOKEN
+            : process.env.SYSTEM_REFRESH_TOKEN,
+        });
+      } catch (_) {
+        return next(new Error("In-valid token", { cause: 400 }));
+      }
+    } else {
+      return next(new Error("In-valid token", { cause: 400 }));
+    }
+  }
   if (!decoded?.id) {
     return next(new Error("In-valid  token payload", { cause: 400 }));
   }

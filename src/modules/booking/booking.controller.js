@@ -10,7 +10,7 @@ import { privateNoStore } from "../../middleware/httpCache.middleware.js";
 const bookingRouter = Router();
 
 // ---------------- Auth shortcuts ----------------
-const userAuth = [authentication(), authorization(roleTypes.user)];
+const userAuth = [authentication(), authorization([roleTypes.user, roleTypes.admin])];
 const adminAuth = [authentication(), authorization(roleTypes.admin)];
 
 // ---------------- User Routes ----------------
@@ -24,7 +24,7 @@ bookingRouter.get(
 );
 
 // Get current user's bookings
-bookingRouter.get("/my-bookings", privateNoStore, ...userAuth, bookingService.getMyBookings);
+bookingRouter.get("/my-bookings", privateNoStore, authentication(), bookingService.getMyBookings);
 
 bookingRouter.get("/active-stay", privateNoStore, ...userAuth, bookingService.getMyActiveStay);
 

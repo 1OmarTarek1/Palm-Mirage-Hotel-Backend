@@ -91,6 +91,16 @@ const paymentCheckoutSessionSchema = new mongoose.Schema(
       type: [payItemSchema],
       default: [],
     },
+    linkedActivityBookings: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: "ActivityBooking",
+      default: [],
+    },
+    linkedRestaurantBookings: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: "BookingTable",
+      default: [],
+    },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -193,8 +203,11 @@ const paymentCheckoutSessionSchema = new mongoose.Schema(
 paymentCheckoutSessionSchema.pre("validate", function validateCheckoutPayload(next) {
   const kind = this.kind || "room";
   if (kind === "room") {
-    if (!Array.isArray(this.items) || this.items.length === 0) {
-      this.invalidate("items", "At least one room item is required");
+    const hasItems = Array.isArray(this.items) && this.items.length > 0;
+    const hasLinked = (this.linkedActivityBookings?.length || 0) > 0 || (this.linkedRestaurantBookings?.length || 0) > 0;
+    
+    if (!hasItems && !hasLinked) {
+      this.invalidate("items", "At least one item (room, activity, or restaurant) is required");
     }
   } else {
     if (!Array.isArray(this.payItems) || this.payItems.length === 0) {

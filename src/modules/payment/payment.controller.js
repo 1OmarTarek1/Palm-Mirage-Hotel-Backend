@@ -7,7 +7,7 @@ import { roleTypes } from "../../DB/Model/User.model.js";
 import { privateNoStore } from "../../middleware/httpCache.middleware.js";
 
 const router = Router();
-const userAuth = [authentication(), authorization([roleTypes.user])];
+const userAuth = [authentication(), authorization([roleTypes.user, roleTypes.admin])];
 
 router.post(
   "/create-checkout-session",

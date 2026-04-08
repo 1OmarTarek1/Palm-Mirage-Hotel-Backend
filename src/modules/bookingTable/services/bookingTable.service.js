@@ -149,7 +149,8 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     roomNumber,
   } = req.body;
 
-  const guestCount = Number(guests);
+  const requestedGuests = Number.parseInt(String(guests ?? ""), 10);
+  let guestCount = Number.isInteger(requestedGuests) && requestedGuests > 0 ? requestedGuests : null;
 
   const startTime = new Date(`${date}T${time}:00`);
   const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000);
@@ -158,7 +159,7 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     return next(new Error("Table-only reservations use pay-on-arrival (cash)", { cause: 400 }));
   }
 
-  if ((bookingMode === "dine_in" || bookingMode === "room_service") && !lineItemsInput.length) {
+  if ((bookingMode === "dine_in" || bookingMode === "room_service" || bookingMode === "pickup") && !lineItemsInput.length) {
     return next(new Error("Add at least one menu item for this booking type", { cause: 400 }));
   }
 
@@ -184,6 +185,9 @@ export const createBooking = asyncHandler(async (req, res, next) => {
       return next(new Error("Room number does not match your current stay", { cause: 400 }));
     }
     linkedUserBooking = stay._id;
+    if (!guestCount) {
+      guestCount = 1;
+    }
   }
 
   let resolvedTableNumber;
@@ -203,7 +207,16 @@ export const createBooking = asyncHandler(async (req, res, next) => {
         new Error("This table is not available for the chosen time or party size", { cause: 409 }),
       );
     }
+    if (!guestCount) {
+      guestCount = Number(table.chairs);
+    } else if (guestCount > Number(table.chairs)) {
+      return next(new Error("Selected guests exceed table capacity", { cause: 400 }));
+    }
     resolvedTableNumber = table.number;
+  }
+
+  if (!guestCount) {
+    guestCount = 1;
   }
 
   const duplicate = await BookingModel.findOne({
@@ -281,7 +294,23 @@ export const createBooking = asyncHandler(async (req, res, next) => {
 
 export const getAvailableTables = asyncHandler(async (req, res, next) => {
   const { date, time, guests } = req.query;
-  const startTime = new Date(`${date}T${time}:00`);
+  const parsedGuests = Number.parseInt(String(guests ?? ""), 10);
+  const hasGuestFilter = Number.isInteger(parsedGuests) && parsedGuests > 0;
+  const guestCount = hasGuestFilter ? parsedGuests : null;
+
+  const datePart =
+    typeof date === "string" && date
+      ? date.slice(0, 10)
+      : new Date(date).toISOString().slice(0, 10);
+  const timePart =
+    typeof time === "string" && time
+      ? time.slice(0, 5)
+      : "";
+  const startTime = new Date(`${datePart}T${timePart}:00`);
+
+  if (Number.isNaN(startTime.getTime())) {
+    return next(new Error("Invalid date/time slot", { cause: 400 }));
+  }
   const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000);
 
   const bookedBookings = await dbService.findAll({
@@ -295,16 +324,31 @@ export const getAvailableTables = asyncHandler(async (req, res, next) => {
 
   const bookedTableNumbers = bookedBookings.map((b) => b.tableNumber).filter(Boolean);
 
+  const tablesThatFitCapacity = await dbService.findAll({
+    model: TableModel,
+    filter: guestCount ? { chairs: { $gte: guestCount } } : {},
+  });
+
   const availableTables = await dbService.findAll({
     model: TableModel,
-    filter: { number: { $nin: bookedTableNumbers }, chairs: { $gte: Number(guests) } },
+    filter: guestCount
+      ? { number: { $nin: bookedTableNumbers }, chairs: { $gte: guestCount } }
+      : { number: { $nin: bookedTableNumbers } },
   });
 
   return successResponse({
     res,
     status: 200,
     message: "Available tables",
-    data: { tables: availableTables },
+    data: {
+      tables: availableTables,
+      diagnostics: {
+        requestedGuests: guestCount,
+        usingGuestFilter: hasGuestFilter,
+        totalTablesMatchingCapacity: tablesThatFitCapacity.length,
+        blockedByTimeOverlap: Math.max(0, tablesThatFitCapacity.length - availableTables.length),
+      },
+    },
   });
 });
 
@@ -541,7 +585,7 @@ export const updateBookingStatus = asyncHandler(async (req, res, next) => {
   const previousStatus = booking.status;
 
   if (status === "confirmed" && previousStatus === "pending") {
-    if (booking.bookingMode !== "room_service" && !booking.tableNumber) {
+    if (booking.bookingMode === "dine_in" && !booking.tableNumber) {
       const table = await findAvailableTable({
         startTime: booking.startTime,
         endTime: booking.endTime,

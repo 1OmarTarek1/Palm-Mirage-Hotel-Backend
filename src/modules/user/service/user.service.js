@@ -6,7 +6,7 @@ import cloudinary from "../../../utils/multer/cloudinary.js";
 import { paginate } from "../../../utils/pagination/pagination.js";
 
 const userSelect = "-password -OTP -__v -cartItems -wishlistItems -restaurantCart";
-const preferenceSelect = "cartItems wishlistItems restaurantCart";
+const preferenceSelect = "cartItems wishlistItems restaurantCart pendingActivityBookings pendingRestaurantBookings";
 
 const sanitizePreferenceItems = (items) => (Array.isArray(items) ? items : []);
 
@@ -116,6 +116,8 @@ export const getPreferences = asyncHandler(async (req, res) => {
       cartItems: sanitizePreferenceItems(user?.cartItems),
       wishlistItems: sanitizePreferenceItems(user?.wishlistItems),
       restaurantCart: sanitizeRestaurantCart(user?.restaurantCart),
+      pendingActivityBookings: sanitizePreferenceItems(user?.pendingActivityBookings),
+      pendingRestaurantBookings: sanitizePreferenceItems(user?.pendingRestaurantBookings),
     },
   });
 });
@@ -181,6 +183,14 @@ export const updatePreferences = asyncHandler(async (req, res) => {
     updateData.restaurantCart = sanitizeRestaurantCart(req.body.restaurantCart);
   }
 
+  if (req.body.pendingActivityBookings !== undefined) {
+    updateData.pendingActivityBookings = sanitizePreferenceItems(req.body.pendingActivityBookings);
+  }
+
+  if (req.body.pendingRestaurantBookings !== undefined) {
+    updateData.pendingRestaurantBookings = sanitizePreferenceItems(req.body.pendingRestaurantBookings);
+  }
+
   const user = await userModel
     .findByIdAndUpdate(req.user._id, updateData, {
       new: true,
@@ -195,6 +205,8 @@ export const updatePreferences = asyncHandler(async (req, res) => {
       cartItems: sanitizePreferenceItems(user?.cartItems),
       wishlistItems: sanitizePreferenceItems(user?.wishlistItems),
       restaurantCart: sanitizeRestaurantCart(user?.restaurantCart),
+      pendingActivityBookings: sanitizePreferenceItems(user?.pendingActivityBookings),
+      pendingRestaurantBookings: sanitizePreferenceItems(user?.pendingRestaurantBookings),
     },
   });
 });
