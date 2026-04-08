@@ -8,6 +8,13 @@ export const publicShortCache =
     if (req.method !== "GET" && req.method !== "HEAD") {
       return next();
     }
+
+    const hasAuthContext = Boolean(req.headers.authorization || req.headers.cookie);
+    if (hasAuthContext) {
+      res.setHeader("Cache-Control", "private, no-store");
+      return next();
+    }
+
     res.setHeader(
       "Cache-Control",
       `public, max-age=${maxAgeSeconds}, stale-while-revalidate=${staleWhileRevalidateSeconds}`,

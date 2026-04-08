@@ -14,6 +14,7 @@ export const createAdminUser = joi.object({
   phoneNumber: joi.string().allow("", null),
   image: joi.string().uri().allow("", null),
   isConfirmed: joi.boolean().optional(),
+  file: generalFields.file.optional(),
 });
 
 export const updateAdminUser = joi.object({

@@ -14,13 +14,8 @@ const normalizeBookingIds = (payload) => {
   return [...new Set(merged)].sort();
 };
 
-/** Guest-facing noise: generic profile edits still emit realtime + toast but skip inbox. */
 const shouldPersistForUserInbox = (payload) => {
-  if (!payload?.userId) return false;
-  const action = payload.action || "";
-  const severity = payload.severity || "info";
-  if (action === "updated" && severity === "info") return false;
-  return true;
+  return Boolean(payload?.userId);
 };
 
 const recentDuplicate = async (dedupeKey) => {

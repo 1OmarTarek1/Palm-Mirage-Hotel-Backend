@@ -7,6 +7,12 @@ import { successResponse } from "../../../utils/response/success.response.js";
 import cloudinary from "../../../utils/multer/cloudinary.js";
 import cloud from "../../../utils/multer/cloudinary.js";
 
+const normalizeToArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null || value === "") return [];
+  return [value];
+};
+
 // Create Room
 export const createRoom = asyncHandler(async (req, res, next) => {
 
@@ -215,9 +221,7 @@ export const updateRoomById = asyncHandler(async (req, res, next) => {
 
   let keptImages = Array.isArray(room.roomImages) ? [...room.roomImages] : [];
 
-  const deletedImages = Array.isArray(req.body.deletedImages)
-    ? req.body.deletedImages
-    : [];
+  const deletedImages = normalizeToArray(req.body.deletedImages);
 
   if (deletedImages.length) {
     const validToDelete = deletedImages.filter((id) =>
@@ -234,9 +238,7 @@ export const updateRoomById = asyncHandler(async (req, res, next) => {
   }
 
   // Optional pair swap semantics (local UI can send ids to replace)
-  const replaceImages = Array.isArray(req.body.replaceImages)
-    ? req.body.replaceImages
-    : [];
+  const replaceImages = normalizeToArray(req.body.replaceImages);
 
   if (replaceImages.length) {
     for (const item of replaceImages) {

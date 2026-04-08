@@ -276,6 +276,14 @@ export const createAdminUser = asyncHandler(async (req, res, next) => {
     return next(new Error("Email already exists", { cause: 409 }));
   }
 
+  let image = req.body.image || "";
+  if (req.file) {
+    const { secure_url } = await cloudinary.uploader.upload(req.file.path, {
+      folder: `${process.env.APP_NAME}/users`,
+    });
+    image = secure_url;
+  }
+
   const user = await userModel.create({
     userName: req.body.userName,
     email: req.body.email,
@@ -284,7 +292,7 @@ export const createAdminUser = asyncHandler(async (req, res, next) => {
     gender: req.body.gender,
     role: req.body.role || roleTypes.user,
     phoneNumber: req.body.phoneNumber || "",
-    image: req.body.image || "",
+    image,
     isConfirmed: req.body.isConfirmed ?? true,
   });
 

@@ -28,7 +28,13 @@ router.patch(
 router.patch("/profile/deleteAccount", authentication(), userService.deleteAccount);
 
 router.get("/", ...adminAuth, userService.getAllUsers);
-router.post("/", ...adminAuth, validation(validators.createAdminUser), userService.createAdminUser);
+router.post(
+  "/",
+  ...adminAuth,
+  uploadCloudFile(fileValidationTypes.image).single("image"),
+  validation(validators.createAdminUser),
+  userService.createAdminUser
+);
 router.patch(
   "/:userId",
   ...adminAuth,
