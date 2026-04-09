@@ -83,11 +83,13 @@ export const createActivity = asyncHandler(async (req, res, next) => {
 
 export const getAllActivities = asyncHandler(async (req, res, next) => {
   const { category, search, icon, sort, page = 1, limit = 10 } = req.query;
+  const isActive = parseBooleanField(req.query.isActive);
 
   const filter = {};
 
   if (category) filter.category = category;
   if (icon) filter.icon = icon;
+  if (isActive !== undefined) filter.isActive = isActive;
 
   if (search) {
     filter.$or = [

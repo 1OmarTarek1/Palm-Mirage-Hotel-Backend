@@ -67,6 +67,9 @@ export const getAllBookings = Joi.object({
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(1000).default(10),
   search: Joi.string().trim().allow("").optional(),
+  bookingMode: Joi.string()
+    .valid(...restaurantBookingModes)
+    .optional(),
   status: Joi.string()
     .valid("pending", "awaiting_payment", "confirmed", "cancelled", "completed")
     .optional(),

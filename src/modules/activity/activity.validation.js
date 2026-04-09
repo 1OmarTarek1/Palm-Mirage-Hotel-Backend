@@ -80,6 +80,7 @@ export const queryFilter = joi
     category: joi.string().valid(...allowedCategories),
     search: joi.string().trim().max(200).allow(""),
     icon: joi.string().valid(...allowedIcons),
+    isActive: joi.boolean(),
     sort: joi.string().valid("newest", "oldest", "title_asc", "title_desc"),
     page: joi.number().integer().min(1),
     limit: joi.number().integer().min(1).max(100),

@@ -524,8 +524,9 @@ export const cancelMyBooking = asyncHandler(async (req, res, next) => {
 });
 
 export const getAllBookings = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, search, status, paymentStatus, sort } = req.query;
+  const { page = 1, limit = 10, search, bookingMode, status, paymentStatus, sort } = req.query;
   const filter = {};
+  if (bookingMode) filter.bookingMode = bookingMode;
   if (status) filter.status = status;
   if (paymentStatus) filter.paymentStatus = paymentStatus;
   if (search) {
