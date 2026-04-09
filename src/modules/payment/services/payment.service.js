@@ -16,6 +16,7 @@ import { appendBookingAudit } from "../../../utils/bookingAuditLog.util.js";
 import {
   fulfillActivityBookingAfterStripe,
   cancelActivityBookingAwaitingPayment,
+  validateActivityBookingDraft,
 } from "../../activityBooking/services/activityBooking.service.js";
 import {
   fulfillRestaurantBookingAfterStripe,
@@ -606,21 +607,40 @@ export const createCheckoutSession = asyncHandler(async (req, res, next) => {
   const linkedActivityIds = [];
   const linkedRestaurantIds = [];
   const payItems = [];
+  const validatedActivityBookings = [];
 
   if (Array.isArray(activityBookings)) {
     for (const ab of activityBookings) {
-      // Create record with all required fields for ActivityBooking schema
+      const validation = await validateActivityBookingDraft({
+        userId: req.user._id,
+        scheduleId: ab.scheduleId,
+        guests: ab.guests,
+      });
+
+      if (!validation.ok) {
+        return next(new Error(validation.message, { cause: validation.statusCode }));
+      }
+
+      validatedActivityBookings.push({
+        ...ab,
+        ...validation,
+      });
+    }
+  }
+
+  if (Array.isArray(validatedActivityBookings) && validatedActivityBookings.length > 0) {
+    for (const ab of validatedActivityBookings) {
       const booking = await activityBookingModel.create({
         user: req.user._id,
-        activity: ab.activityId,
+        activity: ab.activity?._id || ab.activityId,
         schedule: ab.scheduleId,
-        guests: ab.guests,
-        unitPrice: ab.price || 0,
-        totalPrice: (ab.price || 0) * (ab.guests || 1),
-        pricingType: ab.pricingType || "per_person",
-        bookingDate: ab.scheduleDate || ab.date || new Date(), // Corrected to use scheduleDate
-        startTime: ab.startTime || "09:00",
-        endTime: ab.endTime || "10:00",
+        guests: ab.normalizedGuests,
+        unitPrice: ab.unitPrice,
+        totalPrice: ab.totalPrice,
+        pricingType: ab.pricingType,
+        bookingDate: ab.bookingDate,
+        startTime: ab.startTime,
+        endTime: ab.endTime,
         status: "awaiting_payment",
         paymentStatus: "unpaid",
         paymentMethod: "card",
@@ -629,7 +649,7 @@ export const createCheckoutSession = asyncHandler(async (req, res, next) => {
       });
       linkedActivityIds.push(booking._id);
       payItems.push({
-        name: `Activity: ${ab.activityTitle || "Activity"}`,
+        name: `Activity: ${ab.activity?.title || ab.activityTitle || "Activity"}`,
         totalPrice: booking.totalPrice,
         quantity: 1,
       });

@@ -93,49 +93,102 @@ export const commitActivitySeats = async (booking) => {
   return { ok: true };
 };
 
-export const createBooking = asyncHandler(async (req, res, next) => {
-  const { scheduleId, guests, contactPhone, notes, paymentMethod = "cash" } = req.body;
-
+export const validateActivityBookingDraft = async ({ userId, scheduleId, guests }) => {
+  const normalizedGuests = Number(guests) || 1;
   const schedule = await activityScheduleModel.findById(scheduleId).populate(
     "activity",
     "title label category image basePrice pricingType location isActive"
   );
 
   if (!schedule) {
-    return next(new Error("Activity schedule not found", { cause: 404 }));
+    return {
+      ok: false,
+      statusCode: 404,
+      message: "Activity schedule not found",
+    };
   }
 
+  const activityTitle = schedule.activity?.title || "This activity";
+  const sessionLabel = `${activityTitle} on ${schedule.date} from ${schedule.startTime} to ${schedule.endTime}`;
+
   const existingBooking = await activityBookingModel.findOne({
-    user: req.user._id,
+    user: userId,
     schedule: schedule._id,
     status: { $in: blockingBookingStatuses },
   });
 
   if (existingBooking) {
-    return next(new Error("You already booked this activity session", { cause: 409 }));
+    return {
+      ok: false,
+      statusCode: 409,
+      message: `You already booked ${sessionLabel}`,
+    };
   }
 
   if (!schedule.activity || !schedule.activity.isActive) {
-    return next(new Error("Activity is not available for booking", { cause: 400 }));
+    return {
+      ok: false,
+      statusCode: 400,
+      message: `${activityTitle} is not available for booking`,
+    };
   }
 
   if (schedule.status === "cancelled" || schedule.status === "completed") {
-    return next(new Error("This activity session is not bookable", { cause: 400 }));
+    return {
+      ok: false,
+      statusCode: 400,
+      message: `${sessionLabel} is not bookable`,
+    };
   }
 
-  if (paymentMethod === "card") {
-    if (schedule.availableSeats < Number(guests)) {
-      return next(new Error("Not enough seats available for this session", { cause: 400 }));
-    }
-  } else {
-    if (schedule.availableSeats < Number(guests)) {
-      return next(new Error("Not enough seats available for this session", { cause: 400 }));
-    }
+  if (schedule.availableSeats < normalizedGuests) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: `Not enough seats available for ${sessionLabel}`,
+    };
   }
 
   const unitPrice = schedule.priceOverride ?? schedule.activity.basePrice ?? 0;
   const pricingType = schedule.activity.pricingType ?? "per_person";
-  const totalPrice = pricingType === "per_group" ? unitPrice : unitPrice * Number(guests);
+  const totalPrice = pricingType === "per_group" ? unitPrice : unitPrice * normalizedGuests;
+
+  return {
+    ok: true,
+    schedule,
+    activity: schedule.activity,
+    normalizedGuests,
+    unitPrice,
+    pricingType,
+    totalPrice,
+    bookingDate: schedule.date,
+    startTime: schedule.startTime,
+    endTime: schedule.endTime,
+  };
+};
+
+export const createBooking = asyncHandler(async (req, res, next) => {
+  const { scheduleId, guests, contactPhone, notes, paymentMethod = "cash" } = req.body;
+  const validation = await validateActivityBookingDraft({
+    userId: req.user._id,
+    scheduleId,
+    guests,
+  });
+
+  if (!validation.ok) {
+    return next(new Error(validation.message, { cause: validation.statusCode }));
+  }
+
+  const {
+    schedule,
+    unitPrice,
+    pricingType,
+    totalPrice,
+    normalizedGuests,
+    bookingDate,
+    startTime,
+    endTime,
+  } = validation;
 
   const status = paymentMethod === "card" ? "awaiting_payment" : "pending";
 
@@ -145,13 +198,13 @@ export const createBooking = asyncHandler(async (req, res, next) => {
       user: req.user._id,
       activity: schedule.activity._id,
       schedule: schedule._id,
-      guests: Number(guests),
+      guests: normalizedGuests,
       unitPrice,
       totalPrice,
       pricingType,
-      bookingDate: schedule.date,
-      startTime: schedule.startTime,
-      endTime: schedule.endTime,
+      bookingDate,
+      startTime,
+      endTime,
       contactPhone,
       notes,
       status,
@@ -170,7 +223,7 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     entityId: booking._id,
     action: "created",
     actorId: req.user._id,
-    after: { status, paymentMethod, scheduleId: String(schedule._id), guests: Number(guests) },
+    after: { status, paymentMethod, scheduleId: String(schedule._id), guests: normalizedGuests },
   });
 
   const notifTitle =
